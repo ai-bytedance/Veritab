@@ -17,7 +17,15 @@ npm run dev:api
 API base: `http://localhost:3001/api/v1`
 Swagger UI: `http://localhost:3001/docs`
 
-Development seed credentials come from `.env`. Change them before first use. The seed refuses to create a default administrator when `NODE_ENV=production`.
+`prisma:seed` installs only system permissions and built-in roles. It never creates users, organizations, project spaces, or sample business data.
+
+Create the first tenant explicitly after setting all `BOOTSTRAP_*` variables:
+
+```bash
+npm run prisma:bootstrap
+```
+
+Required variables are `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_ADMIN_DISPLAY_NAME`, `BOOTSTRAP_ORGANIZATION_SLUG`, `BOOTSTRAP_ORGANIZATION_NAME`, `BOOTSTRAP_PROJECT_KEY`, and `BOOTSTRAP_PROJECT_NAME`. Bootstrap fails closed if any value is missing or if the tenant already exists.
 
 ## Implemented foundation
 

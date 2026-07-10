@@ -39,15 +39,15 @@ export default function SsoConfigSection({
   const [wechatEnabled, setWechatEnabled] = useState(systemConfig.wechatLoginEnabled ?? true);
 
   // Configuration Fields
-  const [feishuAppId, setFeishuAppId] = useState(systemConfig.feishuLoginAppId || "cli_mock_feishu_appid_123");
-  const [feishuAppSecret, setFeishuAppSecret] = useState(systemConfig.feishuLoginAppSecret || "mock_secret_feishu_456");
+  const [feishuAppId, setFeishuAppId] = useState(systemConfig.feishuLoginAppId || "");
+  const [feishuAppSecret, setFeishuAppSecret] = useState(systemConfig.feishuLoginAppSecret || "");
 
-  const [dingtalkAppKey, setDingtalkAppKey] = useState(systemConfig.dingtalkLoginAppKey || "ding_mock_appkey_789");
-  const [dingtalkAppSecret, setDingtalkAppSecret] = useState(systemConfig.dingtalkLoginAppSecret || "mock_secret_dingtalk_abc");
+  const [dingtalkAppKey, setDingtalkAppKey] = useState(systemConfig.dingtalkLoginAppKey || "");
+  const [dingtalkAppSecret, setDingtalkAppSecret] = useState(systemConfig.dingtalkLoginAppSecret || "");
 
-  const [wechatCorpId, setWechatCorpId] = useState(systemConfig.wechatLoginCorpId || "ww_mock_corpid_def");
+  const [wechatCorpId, setWechatCorpId] = useState(systemConfig.wechatLoginCorpId || "");
   const [wechatAgentId, setWechatAgentId] = useState(systemConfig.wechatLoginAgentId || "1000002");
-  const [wechatSecret, setWechatSecret] = useState(systemConfig.wechatLoginSecret || "mock_secret_wechat_ghi");
+  const [wechatSecret, setWechatSecret] = useState(systemConfig.wechatLoginSecret || "");
 
   // Feedback Toast
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);

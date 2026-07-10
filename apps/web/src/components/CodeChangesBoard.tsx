@@ -34,7 +34,6 @@ import {
   Code2,
   FolderOpen
 } from "lucide-react";
-import { MOCK_COMMITS, getPrecookedReport } from "./CodeChangesData";
 import { AIStructuredReport, CommitData, FileChange } from "./CodeChangesData.types";
 import { CodeChangesHeader } from "./CodeChangesHeader";
 import { CodeChangesReport } from "./CodeChangesReport";
@@ -77,18 +76,18 @@ export default function CodeChangesBoard({
   const [showFiles, setShowFiles] = useState(true);
 
   // Closed-loop State for Commits & Repo Config
-  const [localCommits, setLocalCommits] = useState<CommitData[]>(project.repoUrl ? MOCK_COMMITS : []);
+  const [localCommits] = useState<CommitData[]>([]);
   const commits = apiScope ? remote.commits : localCommits;
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const [activeCommitHash, setActiveCommitHash] = useState<string>(project.repoUrl ? MOCK_COMMITS[0].hash : "");
+  const [activeCommitHash, setActiveCommitHash] = useState<string>("");
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Repo Settings State
   const [repoType, setRepoType] = useState<"github" | "gitlab">(project.repoType === "gitlab" ? "gitlab" : "github");
   const [repoUrl, setRepoUrl] = useState(project.repoUrl || "");
-  const [repoToken, setRepoToken] = useState(apiScope ? "" : project.repoUrl ? "ghp_mock_token_for_demo_purposes" : "");
+  const [repoToken, setRepoToken] = useState("");
   const [defaultBranch, setDefaultBranch] = useState("main");
 
   const [isSavingRepo, setIsSavingRepo] = useState(false);
@@ -227,20 +226,7 @@ export default function CodeChangesBoard({
       }
       return;
     }
-    setIsSyncing(true);
-    setTimeout(() => {
-      setLocalCommits(MOCK_COMMITS);
-      if (MOCK_COMMITS.length > 0) {
-        setActiveCommitHash(MOCK_COMMITS[0].hash);
-        setActiveFileIndex(0);
-        setStructuredReport(null);
-      }
-      setIsSyncing(false);
-      if (activeTab === "repo") {
-        setActiveTab("diff");
-      }
-      triggerToast("🔄 代码仓变更数据同步成功，检测到最新 3 条提交记录");
-    }, 1200);
+    triggerToast("当前未启用服务端 Git 集成，请切换到 remote API 模式");
   };
 
   const handleSaveRepo = async () => {
@@ -274,18 +260,10 @@ export default function CodeChangesBoard({
       setIsSavingRepo(false);
       setSaveSuccess(true);
 
-      setIsSyncing(true);
       setTimeout(() => {
         setSaveSuccess(false);
-        setLocalCommits(MOCK_COMMITS);
-        if (MOCK_COMMITS.length > 0) {
-          setActiveCommitHash(MOCK_COMMITS[0].hash);
-          setActiveFileIndex(0);
-          setStructuredReport(null);
-        }
-        setIsSyncing(false);
         setActiveTab("diff");
-        triggerToast("✅ 仓库集成配置保存成功，分支代码同步就绪");
+        triggerToast("仓库地址已保存；启用 remote API 模式后才能同步真实变更");
       }, 1000);
     }, 600);
   };
@@ -299,8 +277,6 @@ export default function CodeChangesBoard({
     setIsAiAnalyzing(true);
     setStructuredReport(null);
     setReportActiveTab("report");
-
-    const precooked = getPrecookedReport(activeCommit.hash, activeFile.filename, analysisScope, analysisDimension);
 
     try {
       let filesContext = "";
@@ -351,13 +327,12 @@ ${filesContext}
         setStructuredReport(parsed);
         triggerToast("✨ AI 高级智能质控校验完成，已输出最新契约诊断报告");
       } else {
-        setStructuredReport(precooked);
-        triggerToast("💡 AI 校验已就绪，已通过内置前沿专家质控规约完成离线对齐分析");
+        throw new Error("AI response does not match the structured report contract");
       }
     } catch (e) {
       console.error(e);
-      setStructuredReport(precooked);
-      triggerToast("💡 智能质控离线诊断引擎已生效，装载最新对齐校验面板");
+      setStructuredReport(null);
+      triggerToast("AI 质控服务暂不可用，请检查服务端模型配置后重试");
     } finally {
       setIsAiAnalyzing(false);
     }
@@ -1022,7 +997,7 @@ ${filesContext}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#5B4DF6] focus:ring-1 focus:ring-[#5B4DF6]/10 transition-all bg-white font-mono"
                       value={repoToken}
                       onChange={(e) => setRepoToken(e.target.value)}
-                      placeholder={apiScope ? "vault://veritab/git/provider-token" : repoType === "github" ? "ghp_xxxxxxxxxxxxxxxxxxxx" : "glpat-xxxxxxxxxxxxxxxxxxxx"}
+                      placeholder="vault://veritab/git/provider-token"
                     />
                     <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">
                       {apiScope ? "这里只保存 Secret Manager 引用，浏览器和数据库都不会保存明文 Token。" : "用于拉取最新的 Commit 记录与 Diff 文本。仅限本地 Demo。"}

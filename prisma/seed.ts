@@ -1,5 +1,4 @@
-import { PrismaClient, ScopeType, SubjectType, UserStatus } from "@prisma/client";
-import * as argon2 from "argon2";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -122,52 +121,6 @@ async function main(): Promise<void> {
     });
   }
 
-  if (process.env.NODE_ENV === "production") {
-    return;
-  }
-
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe-Immediately-123!";
-  const admin = await prisma.user.upsert({
-    where: { email: process.env.SEED_ADMIN_EMAIL ?? "admin@example.com" },
-    update: {},
-    create: {
-      username: process.env.SEED_ADMIN_USERNAME ?? "admin",
-      email: process.env.SEED_ADMIN_EMAIL ?? "admin@example.com",
-      displayName: "Veritab Administrator",
-      passwordHash: await argon2.hash(adminPassword, { type: argon2.argon2id }),
-      status: UserStatus.ACTIVE,
-    },
-  });
-  const organization = await prisma.organization.upsert({
-    where: { slug: "veritab-demo" },
-    update: {},
-    create: { slug: "veritab-demo", name: "Veritab Demo Organization" },
-  });
-  await prisma.organizationMember.upsert({
-    where: { organizationId_userId: { organizationId: organization.id, userId: admin.id } },
-    update: {},
-    create: { organizationId: organization.id, userId: admin.id },
-  });
-  const adminRole = await prisma.role.findFirstOrThrow({ where: { code: "org_admin", organizationId: null } });
-  const existingBinding = await prisma.roleBinding.findFirst({
-    where: {
-      roleId: adminRole.id,
-      userId: admin.id,
-      organizationId: organization.id,
-      scopeType: ScopeType.ORGANIZATION,
-    },
-  });
-  if (!existingBinding) {
-    await prisma.roleBinding.create({
-      data: {
-        roleId: adminRole.id,
-        subjectType: SubjectType.USER,
-        userId: admin.id,
-        scopeType: ScopeType.ORGANIZATION,
-        organizationId: organization.id,
-      },
-    });
-  }
 }
 
 main()

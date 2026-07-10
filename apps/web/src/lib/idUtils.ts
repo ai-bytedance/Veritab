@@ -3,27 +3,26 @@
  * Ensures completely unique, non-conflicting ID design.
  */
 
-import { INITIAL_ISSUES, INITIAL_TEST_CASES } from "../demo/data";
 import { Issue, TestCase, IssueType } from "../types";
 
 // Helper to get stored issues or test cases directly from localStorage
 const getStoredIssues = (): Issue[] => {
-  if (typeof window === "undefined") return INITIAL_ISSUES;
+  if (typeof window === "undefined") return [];
   try {
     const data = localStorage.getItem("veritab_issues");
-    return data ? JSON.parse(data) : INITIAL_ISSUES;
+    return data ? JSON.parse(data) : [];
   } catch (e) {
-    return INITIAL_ISSUES;
+    return [];
   }
 };
 
 const getStoredTestCases = (): TestCase[] => {
-  if (typeof window === "undefined") return INITIAL_TEST_CASES;
+  if (typeof window === "undefined") return [];
   try {
     const data = localStorage.getItem("veritab_test_cases");
-    return data ? JSON.parse(data) : INITIAL_TEST_CASES;
+    return data ? JSON.parse(data) : [];
   } catch (e) {
-    return INITIAL_TEST_CASES;
+    return [];
   }
 };
 

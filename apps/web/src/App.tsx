@@ -20,16 +20,8 @@ import {
   TestCaseGrade,
   TestCaseStatus
 } from "./types";
-import {
-  INITIAL_PROJECTS,
-  INITIAL_USERS,
-  INITIAL_USER_GROUPS,
-  INITIAL_ISSUES,
-  INITIAL_TEST_CASES,
-  DEFAULT_SYSTEM_CONFIG,
-  getStoredData,
-  setStoredData
-} from "./demo/data";
+import { DEFAULT_SYSTEM_CONFIG } from "./config/defaults";
+import { getStoredData, setStoredData } from "./lib/localStorage";
 import Sidebar from "./components/Sidebar";
 import FeishuNotifyModal from "./components/FeishuNotifyModal";
 import PromptMissingModal from "./components/PromptMissingModal";
@@ -38,7 +30,7 @@ import LoginModal from "./components/LoginModal";
 import PersonalCenterModal from "./components/PersonalCenterModal";
 import { Sparkles, HelpCircle, BookmarkCheck, AlertOctagon, FolderGit2, FileCheck2, BarChart4, Settings, ShieldCheck, GitCommit, GitBranch, Globe } from "lucide-react";
 import { generateCaseId } from "./lib/idUtils";
-import { authApi, isRemoteApiMode } from "./api/httpClient";
+import { apiRequest, authApi, isRemoteApiMode } from "./api/httpClient";
 import { RequirementApiScope } from "./features/requirements/api/types";
 import { useGitIntegrations } from "./features/git-integrations/api/useGitIntegrations";
 
@@ -51,13 +43,15 @@ const MetricsDashboard = lazy(() => import("./components/MetricsDashboard"));
 const SystemConfigPanel = lazy(() => import("./components/SystemConfigPanel"));
 
 export default function App() {
-  const requirementApiScope: RequirementApiScope | undefined =
+  const remoteMode = isRemoteApiMode();
+  const configuredApiScope: RequirementApiScope | undefined =
     isRemoteApiMode() && import.meta.env.VITE_ORGANIZATION_ID && import.meta.env.VITE_PROJECT_SPACE_ID
       ? {
           organizationId: import.meta.env.VITE_ORGANIZATION_ID,
           projectSpaceId: import.meta.env.VITE_PROJECT_SPACE_ID,
         }
       : undefined;
+  const [requirementApiScope, setRequirementApiScope] = useState<RequirementApiScope | undefined>(configuredApiScope);
   const gitIntegration = useGitIntegrations(requirementApiScope);
   // Main loaded states from durable local persistence sandbox
   const [projects, setProjects] = useState<Project[]>([]);
@@ -69,41 +63,35 @@ export default function App() {
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
 
   const [currentUser, setCurrentUser] = useState<SystemUser>(() => {
-    const defaultAdmin: SystemUser = {
-      id: "usr-wang",
-      username: "wangbing",
-      nickname: "王兵 (系统管理员)",
-      email: "wangbing@veritab.com",
-      feishuUserId: "ou_wang123",
-      group: "grp-qa",
-      status: "active",
-      role: "admin",
-    };
-    return getStoredData<SystemUser>("veritab_current_user", defaultAdmin);
+    const anonymous: SystemUser = { id: "", username: "", nickname: "未登录", email: "", group: "server-managed", status: "active", role: "member" };
+    return remoteMode ? anonymous : getStoredData<SystemUser>("veritab_current_user", anonymous);
   });
 
   const handleCurrentUserChange = (newUser: SystemUser) => {
     setCurrentUser(newUser);
-    setStoredData("veritab_current_user", newUser);
+    if (!remoteMode) setStoredData("veritab_current_user", newUser);
     setIsLoggedOut(false);
-    setStoredData("veritab_is_logged_out", false);
+    if (!remoteMode) setStoredData("veritab_is_logged_out", false);
     setIsLoginModalOpen(false);
     setUsers(prev => {
-      const updated = prev.map(u => u.id === newUser.id ? { ...u, nickname: newUser.nickname, email: newUser.email, feishuUserId: newUser.feishuUserId, wechatUserId: newUser.wechatUserId, dingtalkUserId: newUser.dingtalkUserId, role: newUser.role } : u);
-      setStoredData("veritab_users", updated);
+      const exists = prev.some((user) => user.id === newUser.id);
+      const updated = exists
+        ? prev.map(u => u.id === newUser.id ? { ...u, nickname: newUser.nickname, email: newUser.email, feishuUserId: newUser.feishuUserId, wechatUserId: newUser.wechatUserId, dingtalkUserId: newUser.dingtalkUserId, role: newUser.role } : u)
+        : [newUser, ...prev];
+      if (!remoteMode) setStoredData("veritab_users", updated);
       return updated;
     });
   };
 
   const handleLogout = () => {
-    if (isRemoteApiMode()) void authApi.logout();
+    if (remoteMode) void authApi.logout();
     setIsLoggedOut(true);
-    setStoredData("veritab_is_logged_out", true);
+    if (!remoteMode) setStoredData("veritab_is_logged_out", true);
     setIsLoginModalOpen(true);
   };
 
   useEffect(() => {
-    if (!isRemoteApiMode()) return;
+    if (!remoteMode) return;
     let cancelled = false;
     void authApi
       .restoreSession()
@@ -134,7 +122,7 @@ export default function App() {
   const [isFeishuModalOpen, setIsFeishuModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isPersonalCenterOpen, setIsPersonalCenterOpen] = useState(false);
-  const [isLoggedOut, setIsLoggedOut] = useState(() => getStoredData<boolean>("veritab_is_logged_out", false));
+  const [isLoggedOut, setIsLoggedOut] = useState(() => remoteMode || getStoredData<boolean>("veritab_is_logged_out", false));
 
   // Advanced Confirmation & Prompt Strategy config states
   const [isPromptMissingOpen, setIsPromptMissingOpen] = useState(false);
@@ -152,49 +140,25 @@ export default function App() {
 
   // Load initial data on mount
   useEffect(() => {
-    const loadedProjects = getStoredData<Project[]>("veritab_projects", INITIAL_PROJECTS);
-    let loadedUsers = getStoredData<SystemUser[]>("veritab_users", INITIAL_USERS);
-    let loadedGroups = getStoredData<UserGroup[]>("veritab_user_groups", INITIAL_USER_GROUPS);
-    const loadedIssues = getStoredData<Issue[]>("veritab_issues", INITIAL_ISSUES);
-    const loadedTestCases = getStoredData<TestCase[]>("veritab_test_cases", INITIAL_TEST_CASES);
+    if (remoteMode) {
+      // Remove legacy business fixtures once production API mode is enabled.
+      ["veritab_projects", "veritab_users", "veritab_user_groups", "veritab_issues", "veritab_test_cases", "veritab_folders", "veritab_system_config", "veritab_current_user", "veritab_is_logged_out"].forEach((key) => localStorage.removeItem(key));
+      setProjects([]);
+      setUsers([]);
+      setUserGroups([]);
+      setIssues([]);
+      setTestCases([]);
+      setFolders([]);
+      setSystemConfig(DEFAULT_SYSTEM_CONFIG);
+      return;
+    }
+    const loadedProjects = getStoredData<Project[]>("veritab_projects", []);
+    const loadedUsers = getStoredData<SystemUser[]>("veritab_users", []);
+    const loadedGroups = getStoredData<UserGroup[]>("veritab_user_groups", []);
+    const loadedIssues = getStoredData<Issue[]>("veritab_issues", []);
+    const loadedTestCases = getStoredData<TestCase[]>("veritab_test_cases", []);
     const loadedFolders = getStoredData<Folder[]>("veritab_folders", []);
     const loadedConfig = getStoredData<SystemConfig>("veritab_system_config", DEFAULT_SYSTEM_CONFIG);
-
-    // Safeguard: Ensure the three default groups have correct permissions configured even if loaded from old cache
-    let updatedGroupsNeeded = false;
-    const repairedGroups = loadedGroups.map(g => {
-      const initialGroup = INITIAL_USER_GROUPS.find(ig => ig.id === g.id);
-      if (initialGroup && (!g.permittedTabs || !g.permittedActions || Object.keys(g.permittedActions).length === 0)) {
-        updatedGroupsNeeded = true;
-        return {
-          ...g,
-          permittedTabs: g.permittedTabs || initialGroup.permittedTabs,
-          permittedActions: g.permittedActions && Object.keys(g.permittedActions).length > 0 ? g.permittedActions : initialGroup.permittedActions
-        };
-      }
-      return g;
-    });
-
-    if (updatedGroupsNeeded) {
-      loadedGroups = repairedGroups;
-      setStoredData("veritab_user_groups", repairedGroups);
-    }
-
-    // Safeguard: Ensure the primary system administrator 'wangbing' always exists
-    if (!loadedUsers.some(u => u.username === "wangbing")) {
-      const wang: SystemUser = INITIAL_USERS.find(u => u.username === "wangbing") || {
-        id: "usr-wang",
-        username: "wangbing",
-        nickname: "王兵 (系统管理员)",
-        email: "wangbing@veritab.com",
-        feishuUserId: "ou_wang123",
-        group: "grp-qa",
-        status: "active",
-        role: "admin",
-      };
-      loadedUsers = [wang, ...loadedUsers];
-      setStoredData("veritab_users", loadedUsers);
-    }
 
     // Safeguard: Ensure visibleMenus is present in some form in the loaded system configuration
     if (!loadedConfig.visibleMenus) {
@@ -216,7 +180,54 @@ export default function App() {
     if (loadedProjects.length > 0) {
       setSelectedProjectId(loadedProjects[0].id);
     }
-  }, []);
+  }, [remoteMode]);
+
+  useEffect(() => {
+    if (!remoteMode || isLoggedOut || requirementApiScope) return;
+    let cancelled = false;
+    void apiRequest<Array<{ id: string }>>("/organizations")
+      .then(async (organizations) => {
+        const organization = organizations[0];
+        if (!organization) return undefined;
+        const spaces = await apiRequest<Array<{ id: string }>>(`/organizations/${organization.id}/spaces`);
+        return spaces[0] ? { organizationId: organization.id, projectSpaceId: spaces[0].id } : undefined;
+      })
+      .then((scope) => {
+        if (!cancelled && scope) setRequirementApiScope(scope);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [remoteMode, isLoggedOut, requirementApiScope]);
+
+  useEffect(() => {
+    if (!remoteMode || isLoggedOut || !requirementApiScope) return;
+    let cancelled = false;
+    void apiRequest<{ id: string; name: string; description: string | null; createdAt: string }>(
+      `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
+    ).then((space) => {
+      if (cancelled) return;
+      const project: Project = {
+        id: space.id,
+        name: space.name,
+        description: space.description || "",
+        repoType: "none",
+        repoUrl: "",
+        createdAt: space.createdAt,
+      };
+      setProjects([project]);
+      setSelectedProjectId(project.id);
+    }).catch(() => {
+      if (!cancelled) {
+        setProjects([]);
+        setSelectedProjectId("");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [remoteMode, isLoggedOut, requirementApiScope?.organizationId, requirementApiScope?.projectSpaceId]);
 
   // Redirect to first permitted tab if activeTab is not permitted for the current non-admin user
   useEffect(() => {
@@ -236,40 +247,40 @@ export default function App() {
   // Sync back on state mutations
   const updateProjects = (updated: Project[]) => {
     setProjects(updated);
-    setStoredData("veritab_projects", updated);
+    if (!remoteMode) setStoredData("veritab_projects", updated);
   };
 
   const updateUsers = (updated: SystemUser[]) => {
     setUsers(updated);
-    setStoredData("veritab_users", updated);
+    if (!remoteMode) setStoredData("veritab_users", updated);
   };
 
   const updateUserGroups = (updated: UserGroup[]) => {
     setUserGroups(updated);
-    setStoredData("veritab_user_groups", updated);
+    if (!remoteMode) setStoredData("veritab_user_groups", updated);
   };
 
   const updateIssues = (updated: Issue[]) => {
     setIssues(updated);
-    setStoredData("veritab_issues", updated);
+    if (!remoteMode) setStoredData("veritab_issues", updated);
   };
 
   const updateTestCases = (updated: TestCase[] | ((prev: TestCase[]) => TestCase[])) => {
     setTestCases((prev) => {
       const next = typeof updated === "function" ? updated(prev) : updated;
-      setStoredData("veritab_test_cases", next);
+      if (!remoteMode) setStoredData("veritab_test_cases", next);
       return next;
     });
   };
 
   const updateFolders = (updated: Folder[]) => {
     setFolders(updated);
-    setStoredData("veritab_folders", updated);
+    if (!remoteMode) setStoredData("veritab_folders", updated);
   };
 
   const updateSystemConfig = (updated: SystemConfig) => {
     setSystemConfig(updated);
-    setStoredData("veritab_system_config", updated);
+    if (!remoteMode) setStoredData("veritab_system_config", updated);
   };
 
   // Triggering the generic express back API for multi-model invokes

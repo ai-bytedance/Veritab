@@ -76,7 +76,7 @@ export default function Sidebar({
   // Match profile information dynamically with user role
   const profileUser = {
     avatar: currentUser.nickname ? currentUser.nickname.charAt(0) : "W",
-    name: currentUser.nickname || "王兵",
+    name: currentUser.nickname || "未登录",
   };
 
   return (

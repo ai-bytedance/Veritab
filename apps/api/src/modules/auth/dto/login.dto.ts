@@ -7,7 +7,7 @@ export class LoginDto {
   @Length(1, 320)
   identifier!: string;
 
-  @ApiProperty({ example: "ChangeMe-Immediately-123!", format: "password" })
+  @ApiProperty({ format: "password", writeOnly: true })
   @IsString()
   @Length(8, 128)
   password!: string;

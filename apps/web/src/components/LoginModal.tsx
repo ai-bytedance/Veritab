@@ -17,7 +17,6 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { User as SystemUser, UserGroup, SystemConfig } from "../types";
-import { INITIAL_USERS } from "../demo/data";
 import { ApiError, authApi, isRemoteApiMode } from "../api/httpClient";
 
 interface LoginModalProps {
@@ -76,8 +75,7 @@ export default function LoginModal({
 
   // Get active users who have bound ID for specified SSO platform
   const getBoundSsoUsers = (platform: "feishu" | "wechat" | "dingtalk") => {
-    const allAvailableUsers = users.length > 0 ? users : INITIAL_USERS;
-    return allAvailableUsers.filter(u => {
+    return users.filter(u => {
       if (u.status === "disabled") return false;
       if (platform === "feishu") return !!u.feishuUserId;
       if (platform === "wechat") return !!u.wechatUserId;
@@ -115,14 +113,13 @@ export default function LoginModal({
         setLoginMethod("password");
         return;
       }
-      const allAvailableUsers = users.length > 0 ? users : INITIAL_USERS;
-      const adminUser = allAvailableUsers.find(u => u.username === "wangbing" || u.role === "admin");
+      const adminUser = users.find(u => u.role === "admin");
       if (adminUser) {
         setUsernameInput(adminUser.username);
         setPassword(adminUser.password || "123456");
       } else {
-        setUsernameInput("wangbing");
-        setPassword("123456");
+        setUsernameInput("");
+        setPassword("");
       }
       setErrorMessage(null);
       setShowSuccess(false);
@@ -173,11 +170,7 @@ export default function LoginModal({
       return;
     }
 
-    const allAvailableUsers = users.length > 0 ? users : INITIAL_USERS;
     let matchedUser = users.find(u => u.username.trim().toLowerCase() === lookupUsername);
-    if (!matchedUser) {
-      matchedUser = INITIAL_USERS.find(u => u.username.trim().toLowerCase() === lookupUsername);
-    }
 
     if (!matchedUser) {
       setErrorMessage("该登录账户不存在，请检查用户名是否输入正确。");
