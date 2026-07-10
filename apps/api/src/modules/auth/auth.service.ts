@@ -18,7 +18,7 @@ export interface AuthResult {
   accessTokenExpiresIn: number;
   refreshToken: string;
   refreshTokenExpiresAt: Date;
-  user: { id: string; username: string; email: string; displayName: string };
+  user: { id: string; username: string; email: string; displayName: string; roleCodes: string[] };
 }
 
 @Injectable()
@@ -155,12 +155,22 @@ export class AuthService {
         userAgent: metadata.userAgent?.slice(0, 500),
       },
     });
+    const roleBindings = await this.prisma.roleBinding.findMany({
+      where: { userId: user.id },
+      select: { role: { select: { code: true } } },
+    });
     return {
       accessToken,
       accessTokenExpiresIn: accessTtlSeconds,
       refreshToken,
       refreshTokenExpiresAt,
-      user: { id: user.id, username: user.username, email: user.email, displayName: user.displayName },
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        displayName: user.displayName,
+        roleCodes: [...new Set(roleBindings.map((binding) => binding.role.code))],
+      },
     };
   }
 

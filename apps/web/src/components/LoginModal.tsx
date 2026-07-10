@@ -155,8 +155,7 @@ export default function LoginModal({
           email: result.user.email,
           group: "server-managed",
           status: "active",
-          // The NestJS Guard remains authoritative; admin UI requires an explicit server permission adapter.
-          role: "member",
+          role: result.user.roleCodes.some((code) => code === "org_admin" || code === "space_admin") ? "admin" : "member",
         };
         setSuccessUser(authenticatedUser);
         setShowSuccess(true);

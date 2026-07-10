@@ -13,7 +13,7 @@ export class ApiError extends Error {
 interface LoginResponse {
   accessToken: string;
   accessTokenExpiresIn: number;
-  user: { id: string; username: string; email: string; displayName: string };
+  user: { id: string; username: string; email: string; displayName: string; roleCodes: string[] };
 }
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");

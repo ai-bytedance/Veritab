@@ -104,7 +104,7 @@ export default function App() {
           email: result.user.email,
           group: "server-managed",
           status: "active",
-          role: "member",
+          role: result.user.roleCodes.some((code) => code === "org_admin" || code === "space_admin") ? "admin" : "member",
         });
       })
       .catch(() => {
