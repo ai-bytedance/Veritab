@@ -5,6 +5,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { Public } from "../../common/decorators/public.decorator";
 import { AuthResult, AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
+import { AcceptInvitationDto } from "./dto/accept-invitation.dto";
 
 @ApiTags("Authentication")
 @Controller("auth")
@@ -25,6 +26,14 @@ export class AuthController {
   ): Promise<Omit<AuthResult, "refreshToken">> {
     const result = await this.authService.login(dto, this.clientMetadata(request));
     return this.writeRefreshCookie(reply, result);
+  }
+
+  @Public()
+  @Post("invitations/accept")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Accept a one-time organization invitation and create a local account" })
+  acceptInvitation(@Body() dto: AcceptInvitationDto) {
+    return this.authService.acceptInvitation(dto);
   }
 
   @Public()

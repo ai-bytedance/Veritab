@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, GoneException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { UserStatus } from "@prisma/client";
@@ -7,6 +7,7 @@ import * as argon2 from "argon2";
 import { AccessTokenPayload, RefreshTokenPayload } from "../../common/auth/principal";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { LoginDto } from "./dto/login.dto";
+import { AcceptInvitationDto } from "./dto/accept-invitation.dto";
 
 interface ClientMetadata {
   ipAddress?: string;
@@ -39,6 +40,53 @@ export class AuthService {
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     return this.createSession(user, randomUUID(), metadata);
+  }
+
+  async acceptInvitation(dto: AcceptInvitationDto) {
+    const tokenHash = this.hash(dto.token);
+    return this.prisma.$transaction(async (tx) => {
+      const invitation = await tx.organizationInvitation.findUnique({
+        where: { tokenHash },
+        include: { role: { select: { id: true, code: true } }, organization: { select: { id: true, name: true } } },
+      });
+      if (!invitation) throw new UnauthorizedException("Invitation is invalid");
+      if (invitation.acceptedAt || invitation.revokedAt || invitation.expiresAt <= new Date()) {
+        throw new GoneException("Invitation is no longer active");
+      }
+      const duplicate = await tx.user.findFirst({ where: { OR: [{ username: dto.username }, { email: invitation.email }] } });
+      if (duplicate) throw new ConflictException("Username or email is already in use");
+      const user = await tx.user.create({
+        data: {
+          username: dto.username,
+          email: invitation.email,
+          displayName: dto.displayName.trim(),
+          passwordHash: await argon2.hash(dto.password, { type: argon2.argon2id }),
+          status: UserStatus.ACTIVE,
+        },
+      });
+      await tx.organizationMember.create({ data: { organizationId: invitation.organizationId, userId: user.id } });
+      await tx.roleBinding.create({
+        data: {
+          roleId: invitation.role.id,
+          subjectType: "USER",
+          userId: user.id,
+          scopeType: "ORGANIZATION",
+          organizationId: invitation.organizationId,
+        },
+      });
+      await tx.organizationInvitation.update({ where: { id: invitation.id }, data: { acceptedAt: new Date() } });
+      await tx.auditLog.create({
+        data: {
+          organizationId: invitation.organizationId,
+          actorId: user.id,
+          action: "member.invitation.accept",
+          resourceType: "OrganizationInvitation",
+          resourceId: invitation.id,
+          metadata: { userId: user.id, roleCode: invitation.role.code },
+        },
+      });
+      return { user: { id: user.id, username: user.username, email: user.email, displayName: user.displayName }, organization: invitation.organization };
+    });
   }
 
   async refresh(rawToken: string | undefined, metadata: ClientMetadata): Promise<AuthResult> {

@@ -158,28 +158,28 @@ enum PullRequestStatus {
 }
 
 model User {
-  id                   String               @id @default(uuid()) @db.Uuid
-  username             String               @unique @db.VarChar(64)
-  email                String               @unique @db.VarChar(320)
-  displayName          String               @map("display_name") @db.VarChar(120)
-  passwordHash         String?              @map("password_hash") @db.VarChar(255)
-  status               UserStatus           @default(ACTIVE)
-  tokenVersion         Int                  @default(0) @map("token_version")
-  lastLoginAt          DateTime?            @map("last_login_at") @db.Timestamptz(3)
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                   String                   @id @default(uuid()) @db.Uuid
+  username             String                   @unique @db.VarChar(64)
+  email                String                   @unique @db.VarChar(320)
+  displayName          String                   @map("display_name") @db.VarChar(120)
+  passwordHash         String?                  @map("password_hash") @db.VarChar(255)
+  status               UserStatus               @default(ACTIVE)
+  tokenVersion         Int                      @default(0) @map("token_version")
+  lastLoginAt          DateTime?                @map("last_login_at") @db.Timestamptz(3)
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
   organizationMembers  OrganizationMember[]
   projectMembers       ProjectMember[]
   refreshSessions      RefreshSession[]
   externalIdentities   ExternalIdentity[]
   groupMembers         GroupMember[]
-  roleBindings         RoleBinding[]        @relation("UserRoleBindings")
-  createdRequirements  Requirement[]        @relation("RequirementCreator")
-  assignedRequirements Requirement[]        @relation("RequirementAssignee")
-  createdDefects       Defect[]             @relation("DefectCreator")
-  assignedDefects      Defect[]             @relation("DefectAssignee")
-  createdTestCases     TestCase[]           @relation("TestCaseCreator")
-  assignedTestCases    TestCase[]           @relation("TestCaseAssignee")
+  roleBindings         RoleBinding[]            @relation("UserRoleBindings")
+  createdRequirements  Requirement[]            @relation("RequirementCreator")
+  assignedRequirements Requirement[]            @relation("RequirementAssignee")
+  createdDefects       Defect[]                 @relation("DefectCreator")
+  assignedDefects      Defect[]                 @relation("DefectAssignee")
+  createdTestCases     TestCase[]               @relation("TestCaseCreator")
+  assignedTestCases    TestCase[]               @relation("TestCaseAssignee")
   notifications        Notification[]
   auditLogs            AuditLog[]
   requirementHistory   RequirementHistory[]
@@ -188,16 +188,17 @@ model User {
   testCaseHistory      TestCaseHistory[]
   testCaseExecutions   TestCaseExecution[]
   updatedTestCatalogs  TestCaseCatalog[]
+  sentInvitations      OrganizationInvitation[] @relation("InvitationSender")
 
   @@map("users")
 }
 
 model Organization {
-  id                String               @id @default(uuid()) @db.Uuid
-  slug              String               @unique @db.VarChar(64)
-  name              String               @db.VarChar(160)
-  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                String                   @id @default(uuid()) @db.Uuid
+  slug              String                   @unique @db.VarChar(64)
+  name              String                   @db.VarChar(160)
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
   members           OrganizationMember[]
   projectSpaces     ProjectSpace[]
   roles             Role[]
@@ -205,6 +206,7 @@ model Organization {
   identityProviders IdentityProvider[]
   webhooks          WebhookConfig[]
   auditLogs         AuditLog[]
+  invitations       OrganizationInvitation[]
 
   @@map("organizations")
 }
@@ -296,15 +298,16 @@ model GroupMember {
 }
 
 model Role {
-  id             String           @id @default(uuid()) @db.Uuid
-  organizationId String?          @map("organization_id") @db.Uuid
-  code           String           @db.VarChar(64)
-  name           String           @db.VarChar(120)
-  description    String?          @db.VarChar(500)
-  isSystem       Boolean          @default(false) @map("is_system")
-  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String?                  @map("organization_id") @db.Uuid
+  code           String                   @db.VarChar(64)
+  name           String                   @db.VarChar(120)
+  description    String?                  @db.VarChar(500)
+  isSystem       Boolean                  @default(false) @map("is_system")
+  organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   permissions    RolePermission[]
   bindings       RoleBinding[]
+  invitations    OrganizationInvitation[]
 
   @@unique([organizationId, code])
   @@index([code])
@@ -349,6 +352,26 @@ model RoleBinding {
   @@index([groupId, organizationId, projectSpaceId])
   @@index([roleId])
   @@map("role_bindings")
+}
+
+model OrganizationInvitation {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  email          String       @db.VarChar(320)
+  roleId         String       @map("role_id") @db.Uuid
+  tokenHash      String       @unique @map("token_hash") @db.VarChar(64)
+  invitedById    String       @map("invited_by_id") @db.Uuid
+  expiresAt      DateTime     @map("expires_at") @db.Timestamptz(3)
+  acceptedAt     DateTime?    @map("accepted_at") @db.Timestamptz(3)
+  revokedAt      DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  invitedBy      User         @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, email, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("organization_invitations")
 }
 
 model RefreshSession {

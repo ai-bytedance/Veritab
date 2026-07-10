@@ -39,7 +39,7 @@ Required variables are `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_EMAIL`, `BOO
 - Defects REST API with severity/source filters, resolution workflow, comments/replies, requirement/test-case traceability and transactional history/audit/Outbox records.
 - Test-case and mindmap API with versioned folder trees, definition/execution separation, optimistic locking, requirement/defect traceability and portable JSON export.
 - Git integration API with secret-reference repository configuration, idempotent Commit/PR imports, file patches and agile-entity traceability.
-- Organization member API with server-side member listing, status administration, direct role assignment, audit logging and self-lockout protection.
+- Organization member API with server-side member listing, status administration, direct role assignment, one-time invitation activation, audit logging and self-lockout protection.
 - Liveness/readiness endpoints and OpenAPI documentation.
 
 ## Security boundaries
