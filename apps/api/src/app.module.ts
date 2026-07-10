@@ -8,6 +8,7 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { DefectsModule } from "./modules/defects/defects.module";
 import { JwtAuthGuard } from "./modules/auth/jwt-auth.guard";
 import { HealthModule } from "./modules/health/health.module";
+import { GitIntegrationsModule } from "./modules/git-integrations/git-integrations.module";
 import { OrganizationsModule } from "./modules/organizations/organizations.module";
 import { ProjectSpacesModule } from "./modules/project-spaces/project-spaces.module";
 import { PermissionsGuard } from "./modules/rbac/permissions.guard";
@@ -29,6 +30,7 @@ import { UsersModule } from "./modules/users/users.module";
     RbacModule,
     AuthModule,
     DefectsModule,
+    GitIntegrationsModule,
     UsersModule,
     OrganizationsModule,
     ProjectSpacesModule,

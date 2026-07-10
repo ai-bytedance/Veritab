@@ -30,6 +30,7 @@ Development seed credentials come from `.env`. Change them before first use. The
 - Requirements REST API with server-side search/filtering, cursor pagination, workflow guards, optimistic locking, immutable history, audit and Outbox events.
 - Defects REST API with severity/source filters, resolution workflow, comments/replies, requirement/test-case traceability and transactional history/audit/Outbox records.
 - Test-case and mindmap API with versioned folder trees, definition/execution separation, optimistic locking, requirement/defect traceability and portable JSON export.
+- Git integration API with secret-reference repository configuration, idempotent Commit/PR imports, file patches and agile-entity traceability.
 - Liveness/readiness endpoints and OpenAPI documentation.
 
 ## Security boundaries

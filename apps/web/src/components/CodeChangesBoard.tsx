@@ -39,6 +39,8 @@ import { AIStructuredReport, CommitData, FileChange } from "./CodeChangesData.ty
 import { CodeChangesHeader } from "./CodeChangesHeader";
 import { CodeChangesReport } from "./CodeChangesReport";
 import { generateDefectId } from "../lib/idUtils";
+import { GitApiScope } from "../features/git-integrations/api/types";
+import { useGitIntegrations } from "../features/git-integrations/api/useGitIntegrations";
 
 interface CodeChangesBoardProps {
   project: Project;
@@ -51,6 +53,7 @@ interface CodeChangesBoardProps {
   users: User[];
   currentUser: User;
   userGroups?: UserGroup[];
+  apiScope?: GitApiScope;
 }
 
 export default function CodeChangesBoard({
@@ -64,7 +67,9 @@ export default function CodeChangesBoard({
   users,
   currentUser,
   userGroups,
+  apiScope,
 }: CodeChangesBoardProps) {
+  const remote = useGitIntegrations(apiScope);
   const [activeTab, setActiveTab] = useState<"diff" | "repo">("diff");
 
   // Responsive sidebar toggles - default to collapsed on small viewports via useEffect
@@ -72,7 +77,8 @@ export default function CodeChangesBoard({
   const [showFiles, setShowFiles] = useState(true);
 
   // Closed-loop State for Commits & Repo Config
-  const [commits, setCommits] = useState<CommitData[]>(project.repoUrl ? MOCK_COMMITS : []);
+  const [localCommits, setLocalCommits] = useState<CommitData[]>(project.repoUrl ? MOCK_COMMITS : []);
+  const commits = apiScope ? remote.commits : localCommits;
   const [isSyncing, setIsSyncing] = useState(false);
 
   const [activeCommitHash, setActiveCommitHash] = useState<string>(project.repoUrl ? MOCK_COMMITS[0].hash : "");
@@ -80,9 +86,9 @@ export default function CodeChangesBoard({
   const [searchQuery, setSearchQuery] = useState("");
 
   // Repo Settings State
-  const [repoType, setRepoType] = useState(project.repoType || "github");
+  const [repoType, setRepoType] = useState<"github" | "gitlab">(project.repoType === "gitlab" ? "gitlab" : "github");
   const [repoUrl, setRepoUrl] = useState(project.repoUrl || "");
-  const [repoToken, setRepoToken] = useState(project.repoUrl ? "ghp_mock_token_for_demo_purposes" : "");
+  const [repoToken, setRepoToken] = useState(apiScope ? "" : project.repoUrl ? "ghp_mock_token_for_demo_purposes" : "");
   const [defaultBranch, setDefaultBranch] = useState("main");
 
   const [isSavingRepo, setIsSavingRepo] = useState(false);
@@ -102,6 +108,26 @@ export default function CodeChangesBoard({
   const activeCommit = commits.find(c => c.hash === activeCommitHash) || commits[0];
   const allFiles = activeCommit?.files || [];
   const activeFile = allFiles[activeFileIndex];
+
+  useEffect(() => {
+    if (!apiScope || remote.isLoading) return;
+    if (remote.repository) {
+      setRepoType(remote.repository.provider === "GITLAB" ? "gitlab" : "github");
+      setRepoUrl(remote.repository.webUrl);
+      setDefaultBranch(remote.repository.defaultBranch);
+      setRepoToken("");
+    } else {
+      setRepoUrl("");
+      setRepoToken("");
+    }
+  }, [apiScope, remote.isLoading, remote.repository?.id, remote.repository?.version]);
+
+  useEffect(() => {
+    if (commits.length && !commits.some((commit) => commit.hash === activeCommitHash)) {
+      setActiveCommitHash(commits[0].hash);
+      setActiveFileIndex(0);
+    }
+  }, [commits, activeCommitHash]);
 
   // Responsive Hook to adjust panel defaults based on window width
   useEffect(() => {
@@ -133,6 +159,7 @@ export default function CodeChangesBoard({
   };
 
   const checkActionPermission = (action: "create" | "edit" | "delete") => {
+    if (apiScope) return true;
     return checkPermission(currentUser || null, userGroups || [], ProjectTab.CODE_CHANGES, action);
   };
 
@@ -177,19 +204,32 @@ export default function CodeChangesBoard({
     );
   };
 
-  const handleSyncRepo = () => {
+  const handleSyncRepo = async () => {
     if (!checkActionPermission("create")) {
       triggerToast("⚠️ 您所属的工作群组无权进行“同步并拉取分支提交记录”操作！");
       return;
     }
-    if (!repoUrl || !repoToken) {
-      alert("请先在「仓库配置」中完成访问路径与 Access Token 的设置");
+    if (!repoUrl || (!repoToken && !(apiScope && remote.repository?.credentialConfigured))) {
+      alert(apiScope ? "请先配置仓库路径与 Secret Manager 凭据引用" : "请先在「仓库配置」中完成访问路径与 Access Token 的设置");
       setActiveTab("repo");
+      return;
+    }
+    if (apiScope) {
+      setIsSyncing(true);
+      try {
+        await remote.refresh();
+        setActiveTab("diff");
+        triggerToast(`🔄 已刷新服务端代码变更，共 ${remote.commits.length} 条记录`);
+      } catch (error) {
+        triggerToast(`同步失败：${error instanceof Error ? error.message : "未知错误"}`);
+      } finally {
+        setIsSyncing(false);
+      }
       return;
     }
     setIsSyncing(true);
     setTimeout(() => {
-      setCommits(MOCK_COMMITS);
+      setLocalCommits(MOCK_COMMITS);
       if (MOCK_COMMITS.length > 0) {
         setActiveCommitHash(MOCK_COMMITS[0].hash);
         setActiveFileIndex(0);
@@ -203,16 +243,31 @@ export default function CodeChangesBoard({
     }, 1200);
   };
 
-  const handleSaveRepo = () => {
+  const handleSaveRepo = async () => {
     if (!checkActionPermission("delete")) {
       triggerToast("⚠️ 您所属的工作群组无权进行“编辑并保存代码仓配置”操作！");
       return;
     }
-    if (!repoUrl || !repoToken || !defaultBranch) {
-      alert("请填写完整的仓库地址、分支与 Access Token");
+    if (!repoUrl || (!repoToken && !(apiScope && remote.repository?.credentialConfigured)) || !defaultBranch) {
+      alert(apiScope ? "请填写仓库地址、分支与凭据引用" : "请填写完整的仓库地址、分支与 Access Token");
       return;
     }
     setIsSavingRepo(true);
+
+    if (apiScope) {
+      try {
+        await remote.saveRepository({ provider: repoType, webUrl: repoUrl, defaultBranch, credentialRef: repoToken || undefined });
+        setSaveSuccess(true);
+        setActiveTab("diff");
+        triggerToast("✅ 仓库配置已安全保存；凭据由 Secret Manager 管理");
+        setTimeout(() => setSaveSuccess(false), 1200);
+      } catch (error) {
+        triggerToast(`保存失败：${error instanceof Error ? error.message : "未知错误"}`);
+      } finally {
+        setIsSavingRepo(false);
+      }
+      return;
+    }
 
     setTimeout(() => {
       onUpdateProject({ ...project, repoType, repoUrl });
@@ -222,7 +277,7 @@ export default function CodeChangesBoard({
       setIsSyncing(true);
       setTimeout(() => {
         setSaveSuccess(false);
-        setCommits(MOCK_COMMITS);
+        setLocalCommits(MOCK_COMMITS);
         if (MOCK_COMMITS.length > 0) {
           setActiveCommitHash(MOCK_COMMITS[0].hash);
           setActiveFileIndex(0);
@@ -416,6 +471,16 @@ ${filesContext}
         <div className="fixed top-20 right-4 sm:right-8 z-50 bg-slate-900 text-white px-4 sm:px-5 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-2xl border border-slate-800 text-xs font-bold flex items-center gap-2 animate-bounce">
           <CheckCircle className="h-4 w-4 text-emerald-400" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {apiScope && (remote.isLoading || remote.isSaving || remote.error) && (
+        <div className={`mx-4 mt-3 rounded-xl border px-4 py-2 text-xs font-bold ${remote.error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-indigo-100 bg-indigo-50 text-indigo-700"}`}>
+          {remote.error
+            ? `Git 集成服务异常：${remote.error instanceof Error ? remote.error.message : "未知错误"}`
+            : remote.isSaving
+              ? "正在保存仓库配置…"
+              : "正在加载代码变更…"}
         </div>
       )}
 
@@ -950,17 +1015,17 @@ ${filesContext}
 
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider flex items-center gap-1">
-                      <Key className="h-3 w-3" /> 3. 访问令牌 (Access Token)
+                      <Key className="h-3 w-3" /> 3. {apiScope ? "凭据引用 (Secret Reference)" : "访问令牌 (Access Token)"}
                     </label>
                     <input
-                      type="password"
+                      type={apiScope ? "text" : "password"}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#5B4DF6] focus:ring-1 focus:ring-[#5B4DF6]/10 transition-all bg-white font-mono"
                       value={repoToken}
                       onChange={(e) => setRepoToken(e.target.value)}
-                      placeholder={repoType === 'github' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : 'glpat-xxxxxxxxxxxxxxxxxxxx'}
+                      placeholder={apiScope ? "vault://veritab/git/provider-token" : repoType === "github" ? "ghp_xxxxxxxxxxxxxxxxxxxx" : "glpat-xxxxxxxxxxxxxxxxxxxx"}
                     />
                     <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">
-                      用于拉取最新的 Commit 记录与 Diff 文本，以执行 AI 质控回归。Token 只会保存在本空间本地。
+                      {apiScope ? "这里只保存 Secret Manager 引用，浏览器和数据库都不会保存明文 Token。" : "用于拉取最新的 Commit 记录与 Diff 文本。仅限本地 Demo。"}
                     </p>
                   </div>
 

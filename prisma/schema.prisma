@@ -144,6 +144,19 @@ enum GitProvider {
   GITEE
 }
 
+enum GitRepositoryStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum PullRequestStatus {
+  DRAFT
+  OPEN
+  MERGED
+  CLOSED
+}
+
 model User {
   id                   String               @id @default(uuid()) @db.Uuid
   username             String               @unique @db.VarChar(64)
@@ -230,6 +243,8 @@ model ProjectSpace {
   testCaseCatalog TestCaseCatalog?
   testNodes       TestCaseNode[]
   codeChanges     CodeChange[]
+  gitRepositories GitRepository[]
+  pullRequests    PullRequest[]
   notifications   Notification[]
   webhooks        WebhookConfig[]
   auditLogs       AuditLog[]
@@ -402,39 +417,40 @@ model Iteration {
 }
 
 model Requirement {
-  id                 String                  @id @default(uuid()) @db.Uuid
-  projectSpaceId     String                  @map("project_space_id") @db.Uuid
-  iterationId        String?                 @map("iteration_id") @db.Uuid
-  displayNo          String                  @map("display_no") @db.VarChar(32)
-  title              String                  @db.VarChar(300)
-  description        String?                 @db.Text
-  acceptanceCriteria String?                 @map("acceptance_criteria") @db.Text
-  type               RequirementType         @default(STORY)
-  status             RequirementStatus       @default(DRAFT)
-  priority           RequirementPriority     @default(P2)
-  parentId           String?                 @map("parent_id") @db.Uuid
-  creatorId          String                  @map("creator_id") @db.Uuid
-  assigneeId         String?                 @map("assignee_id") @db.Uuid
-  storyPoints        Int?                    @map("story_points") @db.SmallInt
-  labels             String[]                @default([])
-  sortOrder          Decimal                 @default(0) @map("sort_order") @db.Decimal(20, 10)
-  plannedStartAt     DateTime?               @map("planned_start_at") @db.Timestamptz(3)
-  plannedEndAt       DateTime?               @map("planned_end_at") @db.Timestamptz(3)
-  dueAt              DateTime?               @map("due_at") @db.Timestamptz(3)
-  customFields       Json?                   @map("custom_fields")
-  version            Int                     @default(1)
-  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt          DateTime?               @map("deleted_at") @db.Timestamptz(3)
-  projectSpace       ProjectSpace            @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
-  iteration          Iteration?              @relation(fields: [iterationId], references: [id], onDelete: SetNull)
-  creator            User                    @relation("RequirementCreator", fields: [creatorId], references: [id])
-  assignee           User?                   @relation("RequirementAssignee", fields: [assigneeId], references: [id])
-  parent             Requirement?            @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children           Requirement[]           @relation("RequirementTree")
+  id                 String                      @id @default(uuid()) @db.Uuid
+  projectSpaceId     String                      @map("project_space_id") @db.Uuid
+  iterationId        String?                     @map("iteration_id") @db.Uuid
+  displayNo          String                      @map("display_no") @db.VarChar(32)
+  title              String                      @db.VarChar(300)
+  description        String?                     @db.Text
+  acceptanceCriteria String?                     @map("acceptance_criteria") @db.Text
+  type               RequirementType             @default(STORY)
+  status             RequirementStatus           @default(DRAFT)
+  priority           RequirementPriority         @default(P2)
+  parentId           String?                     @map("parent_id") @db.Uuid
+  creatorId          String                      @map("creator_id") @db.Uuid
+  assigneeId         String?                     @map("assignee_id") @db.Uuid
+  storyPoints        Int?                        @map("story_points") @db.SmallInt
+  labels             String[]                    @default([])
+  sortOrder          Decimal                     @default(0) @map("sort_order") @db.Decimal(20, 10)
+  plannedStartAt     DateTime?                   @map("planned_start_at") @db.Timestamptz(3)
+  plannedEndAt       DateTime?                   @map("planned_end_at") @db.Timestamptz(3)
+  dueAt              DateTime?                   @map("due_at") @db.Timestamptz(3)
+  customFields       Json?                       @map("custom_fields")
+  version            Int                         @default(1)
+  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime?                   @map("deleted_at") @db.Timestamptz(3)
+  projectSpace       ProjectSpace                @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  iteration          Iteration?                  @relation(fields: [iterationId], references: [id], onDelete: SetNull)
+  creator            User                        @relation("RequirementCreator", fields: [creatorId], references: [id])
+  assignee           User?                       @relation("RequirementAssignee", fields: [assigneeId], references: [id])
+  parent             Requirement?                @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children           Requirement[]               @relation("RequirementTree")
   testCases          TestCase[]
   history            RequirementHistory[]
   defectLinks        DefectRequirementLink[]
+  codeChangeLinks    CodeChangeRequirementLink[]
 
   @@unique([projectSpaceId, displayNo])
   @@index([projectSpaceId, status, updatedAt(sort: Desc), id])
@@ -507,6 +523,7 @@ model Defect {
   testCaseLinks     DefectTestCaseLink[]
   comments          DefectComment[]
   history           DefectHistory[]
+  codeChangeLinks   CodeChangeDefectLink[]
 
   @@unique([projectSpaceId, displayNo])
   @@index([projectSpaceId, status, updatedAt(sort: Desc), id])
@@ -574,41 +591,42 @@ model DefectHistory {
 }
 
 model TestCase {
-  id              String               @id @default(uuid()) @db.Uuid
-  projectSpaceId  String               @map("project_space_id") @db.Uuid
-  requirementId   String?              @map("requirement_id") @db.Uuid
-  folderId        String?              @map("folder_id") @db.Uuid
-  displayNo       String               @map("display_no") @db.VarChar(32)
-  title           String               @db.VarChar(300)
-  grade           TestCaseGrade        @default(P1)
-  precondition    String?              @db.Text
-  steps           String?              @db.Text
-  expectedResult  String?              @map("expected_result") @db.Text
-  actualResult    String?              @map("actual_result") @db.Text
-  status          TestCaseStatus       @default(READY)
-  executionStatus TestResultStatus     @default(UNTESTED) @map("execution_status")
-  creatorId       String               @map("creator_id") @db.Uuid
-  assigneeId      String?              @map("assignee_id") @db.Uuid
-  releaseVersion  String?              @map("release_version") @db.VarChar(100)
-  tags            String[]             @default([])
-  module          String?              @db.VarChar(200)
-  isMindmapMode   Boolean              @default(false) @map("is_mindmap_mode")
-  stepResults     Json?                @map("step_results")
-  stepNotes       Json?                @map("step_notes")
-  customFields    Json?                @map("custom_fields")
-  version         Int                  @default(1)
-  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(3)
-  projectSpace    ProjectSpace         @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
-  requirement     Requirement?         @relation(fields: [requirementId], references: [id], onDelete: SetNull)
-  folder          TestCaseFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  creator         User                 @relation("TestCaseCreator", fields: [creatorId], references: [id])
-  assignee        User?                @relation("TestCaseAssignee", fields: [assigneeId], references: [id])
+  id              String                   @id @default(uuid()) @db.Uuid
+  projectSpaceId  String                   @map("project_space_id") @db.Uuid
+  requirementId   String?                  @map("requirement_id") @db.Uuid
+  folderId        String?                  @map("folder_id") @db.Uuid
+  displayNo       String                   @map("display_no") @db.VarChar(32)
+  title           String                   @db.VarChar(300)
+  grade           TestCaseGrade            @default(P1)
+  precondition    String?                  @db.Text
+  steps           String?                  @db.Text
+  expectedResult  String?                  @map("expected_result") @db.Text
+  actualResult    String?                  @map("actual_result") @db.Text
+  status          TestCaseStatus           @default(READY)
+  executionStatus TestResultStatus         @default(UNTESTED) @map("execution_status")
+  creatorId       String                   @map("creator_id") @db.Uuid
+  assigneeId      String?                  @map("assignee_id") @db.Uuid
+  releaseVersion  String?                  @map("release_version") @db.VarChar(100)
+  tags            String[]                 @default([])
+  module          String?                  @db.VarChar(200)
+  isMindmapMode   Boolean                  @default(false) @map("is_mindmap_mode")
+  stepResults     Json?                    @map("step_results")
+  stepNotes       Json?                    @map("step_notes")
+  customFields    Json?                    @map("custom_fields")
+  version         Int                      @default(1)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  projectSpace    ProjectSpace             @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  requirement     Requirement?             @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  folder          TestCaseFolder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  creator         User                     @relation("TestCaseCreator", fields: [creatorId], references: [id])
+  assignee        User?                    @relation("TestCaseAssignee", fields: [assigneeId], references: [id])
   nodes           TestCaseNode[]
   defectLinks     DefectTestCaseLink[]
   executions      TestCaseExecution[]
   history         TestCaseHistory[]
+  codeChangeLinks CodeChangeTestCaseLink[]
 
   @@unique([projectSpaceId, displayNo])
   @@index([projectSpaceId, status, updatedAt(sort: Desc), id])
@@ -707,21 +725,146 @@ model TestCaseNode {
 }
 
 model CodeChange {
-  id             String       @id @default(uuid()) @db.Uuid
-  projectSpaceId String       @map("project_space_id") @db.Uuid
-  provider       GitProvider
-  repositoryKey  String       @map("repository_key") @db.VarChar(500)
-  commitSha      String       @map("commit_sha") @db.VarChar(64)
-  title          String       @db.VarChar(500)
-  authorName     String?      @map("author_name") @db.VarChar(160)
-  authorEmail    String?      @map("author_email") @db.VarChar(320)
-  committedAt    DateTime     @map("committed_at") @db.Timestamptz(3)
-  metadata       Json?
-  projectSpace   ProjectSpace @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  id               String                      @id @default(uuid()) @db.Uuid
+  projectSpaceId   String                      @map("project_space_id") @db.Uuid
+  repositoryId     String?                     @map("repository_id") @db.Uuid
+  provider         GitProvider
+  repositoryKey    String                      @map("repository_key") @db.VarChar(500)
+  commitSha        String                      @map("commit_sha") @db.VarChar(64)
+  title            String                      @db.VarChar(500)
+  branch           String?                     @db.VarChar(255)
+  authorName       String?                     @map("author_name") @db.VarChar(160)
+  authorEmail      String?                     @map("author_email") @db.VarChar(320)
+  additions        Int                         @default(0)
+  deletions        Int                         @default(0)
+  filesChanged     Int                         @default(0) @map("files_changed")
+  webUrl           String?                     @map("web_url") @db.VarChar(1000)
+  committedAt      DateTime                    @map("committed_at") @db.Timestamptz(3)
+  metadata         Json?
+  createdAt        DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  projectSpace     ProjectSpace                @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  repository       GitRepository?              @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  files            CodeChangeFile[]
+  requirementLinks CodeChangeRequirementLink[]
+  defectLinks      CodeChangeDefectLink[]
+  testCaseLinks    CodeChangeTestCaseLink[]
+  pullRequests     PullRequest[]
 
   @@unique([provider, repositoryKey, commitSha])
   @@index([projectSpaceId, committedAt(sort: Desc)])
+  @@index([repositoryId, committedAt(sort: Desc)])
   @@map("code_changes")
+}
+
+model GitRepository {
+  id             String              @id @default(uuid()) @db.Uuid
+  projectSpaceId String              @map("project_space_id") @db.Uuid
+  provider       GitProvider
+  repositoryKey  String              @map("repository_key") @db.VarChar(500)
+  name           String              @db.VarChar(200)
+  webUrl         String              @map("web_url") @db.VarChar(1000)
+  defaultBranch  String              @default("main") @map("default_branch") @db.VarChar(255)
+  credentialRef  String?             @map("credential_ref") @db.VarChar(500)
+  status         GitRepositoryStatus @default(ACTIVE)
+  lastSyncedAt   DateTime?           @map("last_synced_at") @db.Timestamptz(3)
+  version        Int                 @default(1)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  projectSpace   ProjectSpace        @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  codeChanges    CodeChange[]
+  pullRequests   PullRequest[]
+  webhookEvents  GitWebhookEvent[]
+
+  @@unique([projectSpaceId, provider, repositoryKey])
+  @@index([projectSpaceId, status, updatedAt(sort: Desc)])
+  @@map("git_repositories")
+}
+
+model CodeChangeFile {
+  id           String     @id @default(uuid()) @db.Uuid
+  codeChangeId String     @map("code_change_id") @db.Uuid
+  path         String     @db.VarChar(1000)
+  status       String     @db.VarChar(30)
+  additions    Int        @default(0)
+  deletions    Int        @default(0)
+  patch        String?    @db.Text
+  codeChange   CodeChange @relation(fields: [codeChangeId], references: [id], onDelete: Cascade)
+
+  @@unique([codeChangeId, path])
+  @@map("code_change_files")
+}
+
+model PullRequest {
+  id             String            @id @default(uuid()) @db.Uuid
+  projectSpaceId String            @map("project_space_id") @db.Uuid
+  repositoryId   String            @map("repository_id") @db.Uuid
+  mergeCommitId  String?           @map("merge_commit_id") @db.Uuid
+  externalId     String            @map("external_id") @db.VarChar(100)
+  number         Int
+  title          String            @db.VarChar(500)
+  status         PullRequestStatus
+  sourceBranch   String            @map("source_branch") @db.VarChar(255)
+  targetBranch   String            @map("target_branch") @db.VarChar(255)
+  authorName     String?           @map("author_name") @db.VarChar(160)
+  webUrl         String?           @map("web_url") @db.VarChar(1000)
+  openedAt       DateTime?         @map("opened_at") @db.Timestamptz(3)
+  mergedAt       DateTime?         @map("merged_at") @db.Timestamptz(3)
+  closedAt       DateTime?         @map("closed_at") @db.Timestamptz(3)
+  metadata       Json?
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  projectSpace   ProjectSpace      @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  repository     GitRepository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  mergeCommit    CodeChange?       @relation(fields: [mergeCommitId], references: [id], onDelete: SetNull)
+
+  @@unique([repositoryId, externalId])
+  @@index([projectSpaceId, status, updatedAt(sort: Desc)])
+  @@map("pull_requests")
+}
+
+model CodeChangeRequirementLink {
+  codeChangeId  String      @map("code_change_id") @db.Uuid
+  requirementId String      @map("requirement_id") @db.Uuid
+  codeChange    CodeChange  @relation(fields: [codeChangeId], references: [id], onDelete: Cascade)
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@id([codeChangeId, requirementId])
+  @@map("code_change_requirement_links")
+}
+
+model CodeChangeDefectLink {
+  codeChangeId String     @map("code_change_id") @db.Uuid
+  defectId     String     @map("defect_id") @db.Uuid
+  codeChange   CodeChange @relation(fields: [codeChangeId], references: [id], onDelete: Cascade)
+  defect       Defect     @relation(fields: [defectId], references: [id], onDelete: Cascade)
+
+  @@id([codeChangeId, defectId])
+  @@map("code_change_defect_links")
+}
+
+model CodeChangeTestCaseLink {
+  codeChangeId String     @map("code_change_id") @db.Uuid
+  testCaseId   String     @map("test_case_id") @db.Uuid
+  codeChange   CodeChange @relation(fields: [codeChangeId], references: [id], onDelete: Cascade)
+  testCase     TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@id([codeChangeId, testCaseId])
+  @@map("code_change_test_case_links")
+}
+
+model GitWebhookEvent {
+  id           String        @id @default(uuid()) @db.Uuid
+  repositoryId String        @map("repository_id") @db.Uuid
+  deliveryId   String        @map("delivery_id") @db.VarChar(255)
+  eventType    String        @map("event_type") @db.VarChar(100)
+  payloadHash  String        @map("payload_hash") @db.VarChar(64)
+  receivedAt   DateTime      @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt  DateTime?     @map("processed_at") @db.Timestamptz(3)
+  repository   GitRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, deliveryId])
+  @@index([receivedAt(sort: Desc)])
+  @@map("git_webhook_events")
 }
 
 model Notification {

@@ -24,6 +24,7 @@
     "test:e2e": "npm run test:e2e --workspace=@veritab/api",
     "test:e2e:defects": "node scripts/e2e-defects.mjs",
     "test:e2e:test-cases": "node scripts/e2e-test-cases.mjs",
+    "test:e2e:git": "node scripts/e2e-git-integrations.mjs",
     "prisma:generate": "npm run prisma:generate --workspace=@veritab/api",
     "prisma:validate": "npm run prisma:validate --workspace=@veritab/api"
   },

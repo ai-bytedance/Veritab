@@ -40,6 +40,7 @@ import { Sparkles, HelpCircle, BookmarkCheck, AlertOctagon, FolderGit2, FileChec
 import { generateCaseId } from "./lib/idUtils";
 import { authApi, isRemoteApiMode } from "./api/httpClient";
 import { RequirementApiScope } from "./features/requirements/api/types";
+import { useGitIntegrations } from "./features/git-integrations/api/useGitIntegrations";
 
 const ProjectSpace = lazy(() => import("./components/ProjectSpace"));
 const RequirementsBoard = lazy(() => import("./components/RequirementsBoard"));
@@ -57,6 +58,7 @@ export default function App() {
           projectSpaceId: import.meta.env.VITE_PROJECT_SPACE_ID,
         }
       : undefined;
+  const gitIntegration = useGitIntegrations(requirementApiScope);
   // Main loaded states from durable local persistence sandbox
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<SystemUser[]>([]);
@@ -669,6 +671,13 @@ export default function App() {
   };
 
   const activeProject = projects.find((p) => p.id === selectedProjectId);
+  const connectedRepository = requirementApiScope ? gitIntegration.repository : undefined;
+  const displayedRepositoryType = connectedRepository
+    ? connectedRepository.provider.toLowerCase()
+    : requirementApiScope
+      ? "none"
+      : activeProject?.repoType || "none";
+  const displayedDefaultBranch = connectedRepository?.defaultBranch || "main";
 
   return (
     <div className="min-h-screen bg-slate-50/10 text-slate-800 flex flex-col md:flex-row font-sans" id="veritab-app-root">
@@ -738,13 +747,13 @@ export default function App() {
             </div>
 
             {/* Connection Status indicator */}
-            {activeProject?.repoType && activeProject?.repoType !== "none" ? (
+            {displayedRepositoryType !== "none" ? (
               <div className="flex items-center gap-2 text-xs bg-indigo-50/50 border border-indigo-100/60 px-3 py-1.5 rounded-xl text-indigo-700">
                 <GitBranch className="h-4 w-4 text-indigo-500 shrink-0" />
                 <span className="font-bold flex items-center gap-1">
-                  <span>已连接 {activeProject.repoType === "github" ? "GitHub" : activeProject.repoType === "gitlab" ? "GitLab" : activeProject.repoType}</span>
+                  <span>已连接 {displayedRepositoryType === "github" ? "GitHub" : displayedRepositoryType === "gitlab" ? "GitLab" : displayedRepositoryType}</span>
                   <span className="text-indigo-400/85 font-normal">分支主干</span>
-                  <span className="font-mono bg-indigo-100/50 px-1.5 py-0.2 rounded text-[10px] text-indigo-800 font-bold ml-0.5">main</span>
+                  <span className="font-mono bg-indigo-100/50 px-1.5 py-0.2 rounded text-[10px] text-indigo-800 font-bold ml-0.5">{displayedDefaultBranch}</span>
                 </span>
                 <span className="relative flex h-1.5 w-1.5 ml-1">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -754,7 +763,7 @@ export default function App() {
             ) : (
               <div className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200/60 px-3 py-1.5 rounded-xl text-slate-600">
                 <Globe className="h-4 w-4 text-slate-400 shrink-0" />
-                <span className="font-bold">虚拟集成沙盒模式</span>
+                <span className="font-bold">未连接代码仓库</span>
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400 ml-1"></span>
               </div>
             )}
@@ -902,6 +911,7 @@ export default function App() {
                   users={users}
                   currentUser={currentUser}
                   userGroups={userGroups}
+                  apiScope={requirementApiScope}
                 />
               )}
 

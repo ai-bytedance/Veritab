@@ -7,6 +7,7 @@ export interface FileChange {
 }
 
 export interface CommitData {
+  id?: string;
   hash: string;
   message: string;
   author: string;
