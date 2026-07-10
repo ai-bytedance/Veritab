@@ -1,5 +1,5 @@
-import { ConflictException, Injectable, InternalServerErrorException } from "@nestjs/common";
-import { ScopeType, SubjectType } from "@prisma/client";
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { MembershipStatus, ScopeType, SubjectType } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 
@@ -42,6 +42,77 @@ export class OrganizationsService {
         },
       });
       return organization;
+    });
+  }
+
+  listMembers(organizationId: string) {
+    return this.prisma.organizationMember.findMany({
+      where: { organizationId },
+      select: {
+        status: true,
+        joinedAt: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            status: true,
+            lastLoginAt: true,
+            roleBindings: {
+              where: { organizationId, scopeType: ScopeType.ORGANIZATION, projectSpaceId: null },
+              select: { role: { select: { code: true, name: true } } },
+            },
+          },
+        },
+      },
+      orderBy: [{ status: "asc" }, { joinedAt: "asc" }],
+    });
+  }
+
+  async updateMemberStatus(organizationId: string, userId: string, actorId: string, status: MembershipStatus) {
+    if (userId === actorId && status !== MembershipStatus.ACTIVE) {
+      throw new BadRequestException("You cannot suspend your own organization membership");
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId, userId } },
+      });
+      if (!existing) throw new NotFoundException("Organization member not found");
+      const member = await tx.organizationMember.update({
+        where: { organizationId_userId: { organizationId, userId } },
+        data: { status },
+      });
+      await tx.auditLog.create({
+        data: { organizationId, actorId, action: "member.status.update", resourceType: "User", resourceId: userId, metadata: { status } },
+      });
+      return member;
+    });
+  }
+
+  async assignMemberRole(organizationId: string, userId: string, actorId: string, roleCode: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const member = await tx.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId, userId } },
+      });
+      if (!member) throw new NotFoundException("Organization member not found");
+      const role = await tx.role.findFirst({
+        where: { code: roleCode, OR: [{ organizationId: null }, { organizationId }] },
+      });
+      if (!role) throw new NotFoundException("Role not found");
+      if (userId === actorId && roleCode !== "org_admin") {
+        throw new BadRequestException("You cannot remove your own organization administrator role");
+      }
+      await tx.roleBinding.deleteMany({
+        where: { organizationId, userId, scopeType: ScopeType.ORGANIZATION, projectSpaceId: null },
+      });
+      const binding = await tx.roleBinding.create({
+        data: { roleId: role.id, subjectType: SubjectType.USER, userId, scopeType: ScopeType.ORGANIZATION, organizationId },
+      });
+      await tx.auditLog.create({
+        data: { organizationId, actorId, action: "member.role.assign", resourceType: "RoleBinding", resourceId: binding.id, metadata: { userId, roleCode } },
+      });
+      return { userId, roleCode };
     });
   }
 }
