@@ -1,0 +1,33 @@
+{
+  "name": "veritab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Veritab Agile Platform monorepo",
+  "engines": {
+    "node": ">=20.11 <26"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "overrides": {
+    "ajv": "8.18.0"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:api": "npm run build --workspace=@veritab/api",
+    "build:web": "npm run build --workspace=@veritab/web",
+    "dev:api": "npm run start:dev --workspace=@veritab/api",
+    "dev:web": "npm run dev --workspace=@veritab/web",
+    "preview:web": "npm run preview --workspace=@veritab/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspace=@veritab/api",
+    "test:e2e": "npm run test:e2e --workspace=@veritab/api",
+    "test:e2e:defects": "node scripts/e2e-defects.mjs",
+    "test:e2e:test-cases": "node scripts/e2e-test-cases.mjs",
+    "prisma:generate": "npm run prisma:generate --workspace=@veritab/api",
+    "prisma:validate": "npm run prisma:validate --workspace=@veritab/api"
+  },
+  "devDependencies": {
+    "ajv": "8.18.0"
+  }
+}

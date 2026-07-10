@@ -1,0 +1,796 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum SubjectType {
+  USER
+  GROUP
+}
+
+enum ScopeType {
+  ORGANIZATION
+  PROJECT_SPACE
+}
+
+enum IdentityProviderType {
+  OIDC
+  SAML
+}
+
+enum IterationStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum RequirementStatus {
+  DRAFT
+  UNDER_REVIEW
+  IN_PROGRESS
+  TESTING
+  ACCEPTING
+  DONE
+  CANCELLED
+}
+
+enum RequirementType {
+  EPIC
+  FEATURE
+  STORY
+  TASK
+}
+
+enum RequirementPriority {
+  P0
+  P1
+  P2
+  P3
+}
+
+enum DefectStatus {
+  OPEN
+  CONFIRMED
+  IN_PROGRESS
+  RESOLVED
+  VERIFIED
+  CLOSED
+  REJECTED
+  REOPENED
+}
+
+enum DefectSeverity {
+  BLOCKER
+  CRITICAL
+  MAJOR
+  MINOR
+  TRIVIAL
+}
+
+enum DefectSource {
+  MANUAL
+  TEST_EXECUTION
+  CODE_CHANGE
+  IMPORT
+  MONITORING
+}
+
+enum TestCaseStatus {
+  DRAFT
+  READY
+  DEPRECATED
+}
+
+enum TestCaseGrade {
+  P0
+  P1
+  P2
+  P3
+}
+
+enum TestResultStatus {
+  UNTESTED
+  PASS
+  FAIL
+  BLOCKED
+}
+
+enum TestNodeType {
+  ROOT
+  SUITE
+  CASE
+  STEP
+  NOTE
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum WebhookProvider {
+  FEISHU
+  WECOM
+  DINGTALK
+  GITHUB
+  GITLAB
+  GITEE
+  CUSTOM
+}
+
+enum GitProvider {
+  GITHUB
+  GITLAB
+  GITEE
+}
+
+model User {
+  id                   String               @id @default(uuid()) @db.Uuid
+  username             String               @unique @db.VarChar(64)
+  email                String               @unique @db.VarChar(320)
+  displayName          String               @map("display_name") @db.VarChar(120)
+  passwordHash         String?              @map("password_hash") @db.VarChar(255)
+  status               UserStatus           @default(ACTIVE)
+  tokenVersion         Int                  @default(0) @map("token_version")
+  lastLoginAt          DateTime?            @map("last_login_at") @db.Timestamptz(3)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organizationMembers  OrganizationMember[]
+  projectMembers       ProjectMember[]
+  refreshSessions      RefreshSession[]
+  externalIdentities   ExternalIdentity[]
+  groupMembers         GroupMember[]
+  roleBindings         RoleBinding[]        @relation("UserRoleBindings")
+  createdRequirements  Requirement[]        @relation("RequirementCreator")
+  assignedRequirements Requirement[]        @relation("RequirementAssignee")
+  createdDefects       Defect[]             @relation("DefectCreator")
+  assignedDefects      Defect[]             @relation("DefectAssignee")
+  createdTestCases     TestCase[]           @relation("TestCaseCreator")
+  assignedTestCases    TestCase[]           @relation("TestCaseAssignee")
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  requirementHistory   RequirementHistory[]
+  defectHistory        DefectHistory[]
+  defectComments       DefectComment[]
+  testCaseHistory      TestCaseHistory[]
+  testCaseExecutions   TestCaseExecution[]
+  updatedTestCatalogs  TestCaseCatalog[]
+
+  @@map("users")
+}
+
+model Organization {
+  id                String               @id @default(uuid()) @db.Uuid
+  slug              String               @unique @db.VarChar(64)
+  name              String               @db.VarChar(160)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  members           OrganizationMember[]
+  projectSpaces     ProjectSpace[]
+  roles             Role[]
+  userGroups        UserGroup[]
+  identityProviders IdentityProvider[]
+  webhooks          WebhookConfig[]
+  auditLogs         AuditLog[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  status         MembershipStatus @default(ACTIVE)
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz(3)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, userId])
+  @@index([userId, status])
+  @@map("organization_members")
+}
+
+model ProjectSpace {
+  id              String           @id @default(uuid()) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  key             String           @db.VarChar(16)
+  name            String           @db.VarChar(160)
+  description     String?          @db.Text
+  version         Int              @default(1)
+  archivedAt      DateTime?        @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members         ProjectMember[]
+  roleBindings    RoleBinding[]
+  iterations      Iteration[]
+  requirements    Requirement[]
+  defects         Defect[]
+  testCases       TestCase[]
+  testCaseFolders TestCaseFolder[]
+  testCaseCatalog TestCaseCatalog?
+  testNodes       TestCaseNode[]
+  codeChanges     CodeChange[]
+  notifications   Notification[]
+  webhooks        WebhookConfig[]
+  auditLogs       AuditLog[]
+  counter         ProjectCounter?
+
+  @@unique([organizationId, key])
+  @@index([organizationId, updatedAt(sort: Desc)])
+  @@map("project_spaces")
+}
+
+model ProjectMember {
+  projectSpaceId String           @map("project_space_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  status         MembershipStatus @default(ACTIVE)
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz(3)
+  projectSpace   ProjectSpace     @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectSpaceId, userId])
+  @@index([userId, status])
+  @@map("project_members")
+}
+
+model UserGroup {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  name           String        @db.VarChar(120)
+  description    String?       @db.VarChar(500)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        GroupMember[]
+  roleBindings   RoleBinding[] @relation("GroupRoleBindings")
+
+  @@unique([organizationId, name])
+  @@map("user_groups")
+}
+
+model GroupMember {
+  groupId   String    @map("group_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  group     UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model Role {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String?          @map("organization_id") @db.Uuid
+  code           String           @db.VarChar(64)
+  name           String           @db.VarChar(120)
+  description    String?          @db.VarChar(500)
+  isSystem       Boolean          @default(false) @map("is_system")
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions    RolePermission[]
+  bindings       RoleBinding[]
+
+  @@unique([organizationId, code])
+  @@index([code])
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique @db.VarChar(100)
+  description String?          @db.VarChar(500)
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RoleBinding {
+  id             String        @id @default(uuid()) @db.Uuid
+  roleId         String        @map("role_id") @db.Uuid
+  subjectType    SubjectType   @map("subject_type")
+  userId         String?       @map("user_id") @db.Uuid
+  groupId        String?       @map("group_id") @db.Uuid
+  scopeType      ScopeType     @map("scope_type")
+  organizationId String        @map("organization_id") @db.Uuid
+  projectSpaceId String?       @map("project_space_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  role           Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user           User?         @relation("UserRoleBindings", fields: [userId], references: [id], onDelete: Cascade)
+  group          UserGroup?    @relation("GroupRoleBindings", fields: [groupId], references: [id], onDelete: Cascade)
+  projectSpace   ProjectSpace? @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, organizationId, projectSpaceId])
+  @@index([groupId, organizationId, projectSpaceId])
+  @@index([roleId])
+  @@map("role_bindings")
+}
+
+model RefreshSession {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  familyId      String    @map("family_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedById  String?   @map("replaced_by_id") @db.Uuid
+  ipAddressHash String?   @map("ip_address_hash") @db.VarChar(128)
+  userAgent     String?   @map("user_agent") @db.VarChar(500)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, familyId])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+model IdentityProvider {
+  id              String               @id @default(uuid()) @db.Uuid
+  organizationId  String               @map("organization_id") @db.Uuid
+  type            IdentityProviderType
+  name            String               @db.VarChar(120)
+  issuer          String?              @db.VarChar(500)
+  clientId        String?              @map("client_id") @db.VarChar(255)
+  encryptedSecret String?              @map("encrypted_secret") @db.Text
+  metadata        Json?
+  enabled         Boolean              @default(false)
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  identities      ExternalIdentity[]
+
+  @@unique([organizationId, name])
+  @@map("identity_providers")
+}
+
+model ExternalIdentity {
+  id         String           @id @default(uuid()) @db.Uuid
+  providerId String           @map("provider_id") @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  subject    String           @db.VarChar(255)
+  provider   IdentityProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, subject])
+  @@unique([providerId, userId])
+  @@map("external_identities")
+}
+
+model Iteration {
+  id             String          @id @default(uuid()) @db.Uuid
+  projectSpaceId String          @map("project_space_id") @db.Uuid
+  name           String          @db.VarChar(160)
+  goal           String?         @db.Text
+  status         IterationStatus @default(PLANNED)
+  startsAt       DateTime        @map("starts_at") @db.Timestamptz(3)
+  endsAt         DateTime        @map("ends_at") @db.Timestamptz(3)
+  version        Int             @default(1)
+  projectSpace   ProjectSpace    @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  requirements   Requirement[]
+  defects        Defect[]
+
+  @@index([projectSpaceId, status, startsAt])
+  @@map("iterations")
+}
+
+model Requirement {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  projectSpaceId     String                  @map("project_space_id") @db.Uuid
+  iterationId        String?                 @map("iteration_id") @db.Uuid
+  displayNo          String                  @map("display_no") @db.VarChar(32)
+  title              String                  @db.VarChar(300)
+  description        String?                 @db.Text
+  acceptanceCriteria String?                 @map("acceptance_criteria") @db.Text
+  type               RequirementType         @default(STORY)
+  status             RequirementStatus       @default(DRAFT)
+  priority           RequirementPriority     @default(P2)
+  parentId           String?                 @map("parent_id") @db.Uuid
+  creatorId          String                  @map("creator_id") @db.Uuid
+  assigneeId         String?                 @map("assignee_id") @db.Uuid
+  storyPoints        Int?                    @map("story_points") @db.SmallInt
+  labels             String[]                @default([])
+  sortOrder          Decimal                 @default(0) @map("sort_order") @db.Decimal(20, 10)
+  plannedStartAt     DateTime?               @map("planned_start_at") @db.Timestamptz(3)
+  plannedEndAt       DateTime?               @map("planned_end_at") @db.Timestamptz(3)
+  dueAt              DateTime?               @map("due_at") @db.Timestamptz(3)
+  customFields       Json?                   @map("custom_fields")
+  version            Int                     @default(1)
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime?               @map("deleted_at") @db.Timestamptz(3)
+  projectSpace       ProjectSpace            @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  iteration          Iteration?              @relation(fields: [iterationId], references: [id], onDelete: SetNull)
+  creator            User                    @relation("RequirementCreator", fields: [creatorId], references: [id])
+  assignee           User?                   @relation("RequirementAssignee", fields: [assigneeId], references: [id])
+  parent             Requirement?            @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children           Requirement[]           @relation("RequirementTree")
+  testCases          TestCase[]
+  history            RequirementHistory[]
+  defectLinks        DefectRequirementLink[]
+
+  @@unique([projectSpaceId, displayNo])
+  @@index([projectSpaceId, status, updatedAt(sort: Desc), id])
+  @@index([projectSpaceId, assigneeId, status])
+  @@index([projectSpaceId, type, priority])
+  @@index([parentId])
+  @@map("requirements")
+}
+
+model RequirementHistory {
+  id            String      @id @default(uuid()) @db.Uuid
+  requirementId String      @map("requirement_id") @db.Uuid
+  actorId       String      @map("actor_id") @db.Uuid
+  action        String      @db.VarChar(80)
+  fromVersion   Int?        @map("from_version")
+  toVersion     Int         @map("to_version")
+  changes       Json
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  actor         User        @relation(fields: [actorId], references: [id])
+
+  @@index([requirementId, createdAt(sort: Desc)])
+  @@map("requirement_history")
+}
+
+model ProjectCounter {
+  projectSpaceId  String       @id @map("project_space_id") @db.Uuid
+  requirementNext Int          @default(1) @map("requirement_next")
+  defectNext      Int          @default(1) @map("defect_next")
+  testCaseNext    Int          @default(1) @map("test_case_next")
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  projectSpace    ProjectSpace @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+
+  @@map("project_counters")
+}
+
+model Defect {
+  id                String                  @id @default(uuid()) @db.Uuid
+  projectSpaceId    String                  @map("project_space_id") @db.Uuid
+  iterationId       String?                 @map("iteration_id") @db.Uuid
+  displayNo         String                  @map("display_no") @db.VarChar(32)
+  title             String                  @db.VarChar(300)
+  description       String?                 @db.Text
+  environment       String?                 @db.VarChar(500)
+  precondition      String?                 @db.Text
+  reproductionSteps String?                 @map("reproduction_steps") @db.Text
+  expectedResult    String?                 @map("expected_result") @db.Text
+  actualResult      String?                 @map("actual_result") @db.Text
+  resolution        String?                 @db.Text
+  status            DefectStatus            @default(OPEN)
+  severity          DefectSeverity          @default(MAJOR)
+  source            DefectSource            @default(MANUAL)
+  creatorId         String                  @map("creator_id") @db.Uuid
+  assigneeId        String?                 @map("assignee_id") @db.Uuid
+  detectedVersion   String?                 @map("detected_version") @db.VarChar(100)
+  fixedVersion      String?                 @map("fixed_version") @db.VarChar(100)
+  labels            String[]                @default([])
+  sortOrder         Decimal                 @default(0) @map("sort_order") @db.Decimal(20, 10)
+  dueAt             DateTime?               @map("due_at") @db.Timestamptz(3)
+  customFields      Json?                   @map("custom_fields")
+  version           Int                     @default(1)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt         DateTime?               @map("deleted_at") @db.Timestamptz(3)
+  projectSpace      ProjectSpace            @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  iteration         Iteration?              @relation(fields: [iterationId], references: [id], onDelete: SetNull)
+  creator           User                    @relation("DefectCreator", fields: [creatorId], references: [id])
+  assignee          User?                   @relation("DefectAssignee", fields: [assigneeId], references: [id])
+  requirementLinks  DefectRequirementLink[]
+  testCaseLinks     DefectTestCaseLink[]
+  comments          DefectComment[]
+  history           DefectHistory[]
+
+  @@unique([projectSpaceId, displayNo])
+  @@index([projectSpaceId, status, updatedAt(sort: Desc), id])
+  @@index([projectSpaceId, assigneeId, status])
+  @@index([projectSpaceId, severity, status])
+  @@map("defects")
+}
+
+model DefectRequirementLink {
+  defectId      String      @map("defect_id") @db.Uuid
+  requirementId String      @map("requirement_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  defect        Defect      @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@id([defectId, requirementId])
+  @@index([requirementId])
+  @@map("defect_requirement_links")
+}
+
+model DefectTestCaseLink {
+  defectId   String   @map("defect_id") @db.Uuid
+  testCaseId String   @map("test_case_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  defect     Defect   @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@id([defectId, testCaseId])
+  @@index([testCaseId])
+  @@map("defect_test_case_links")
+}
+
+model DefectComment {
+  id        String          @id @default(uuid()) @db.Uuid
+  defectId  String          @map("defect_id") @db.Uuid
+  authorId  String          @map("author_id") @db.Uuid
+  parentId  String?         @map("parent_id") @db.Uuid
+  content   String          @db.Text
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime?       @map("deleted_at") @db.Timestamptz(3)
+  defect    Defect          @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  author    User            @relation(fields: [authorId], references: [id])
+  parent    DefectComment?  @relation("DefectCommentTree", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   DefectComment[] @relation("DefectCommentTree")
+
+  @@index([defectId, parentId, createdAt])
+  @@map("defect_comments")
+}
+
+model DefectHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  defectId    String   @map("defect_id") @db.Uuid
+  actorId     String   @map("actor_id") @db.Uuid
+  action      String   @db.VarChar(80)
+  fromVersion Int?     @map("from_version")
+  toVersion   Int      @map("to_version")
+  changes     Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  defect      Defect   @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  actor       User     @relation(fields: [actorId], references: [id])
+
+  @@index([defectId, createdAt(sort: Desc)])
+  @@map("defect_history")
+}
+
+model TestCase {
+  id              String               @id @default(uuid()) @db.Uuid
+  projectSpaceId  String               @map("project_space_id") @db.Uuid
+  requirementId   String?              @map("requirement_id") @db.Uuid
+  folderId        String?              @map("folder_id") @db.Uuid
+  displayNo       String               @map("display_no") @db.VarChar(32)
+  title           String               @db.VarChar(300)
+  grade           TestCaseGrade        @default(P1)
+  precondition    String?              @db.Text
+  steps           String?              @db.Text
+  expectedResult  String?              @map("expected_result") @db.Text
+  actualResult    String?              @map("actual_result") @db.Text
+  status          TestCaseStatus       @default(READY)
+  executionStatus TestResultStatus     @default(UNTESTED) @map("execution_status")
+  creatorId       String               @map("creator_id") @db.Uuid
+  assigneeId      String?              @map("assignee_id") @db.Uuid
+  releaseVersion  String?              @map("release_version") @db.VarChar(100)
+  tags            String[]             @default([])
+  module          String?              @db.VarChar(200)
+  isMindmapMode   Boolean              @default(false) @map("is_mindmap_mode")
+  stepResults     Json?                @map("step_results")
+  stepNotes       Json?                @map("step_notes")
+  customFields    Json?                @map("custom_fields")
+  version         Int                  @default(1)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  projectSpace    ProjectSpace         @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  requirement     Requirement?         @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  folder          TestCaseFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  creator         User                 @relation("TestCaseCreator", fields: [creatorId], references: [id])
+  assignee        User?                @relation("TestCaseAssignee", fields: [assigneeId], references: [id])
+  nodes           TestCaseNode[]
+  defectLinks     DefectTestCaseLink[]
+  executions      TestCaseExecution[]
+  history         TestCaseHistory[]
+
+  @@unique([projectSpaceId, displayNo])
+  @@index([projectSpaceId, status, updatedAt(sort: Desc), id])
+  @@index([projectSpaceId, executionStatus, grade])
+  @@index([requirementId])
+  @@index([folderId])
+  @@map("test_cases")
+}
+
+model TestCaseFolder {
+  id             String           @id @default(uuid()) @db.Uuid
+  projectSpaceId String           @map("project_space_id") @db.Uuid
+  parentId       String?          @map("parent_id") @db.Uuid
+  clientKey      String           @map("client_key") @db.VarChar(120)
+  name           String           @db.VarChar(200)
+  position       Int              @default(0)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  projectSpace   ProjectSpace     @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  parent         TestCaseFolder?  @relation("TestCaseFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children       TestCaseFolder[] @relation("TestCaseFolderTree")
+  testCases      TestCase[]
+
+  @@unique([projectSpaceId, clientKey])
+  @@index([projectSpaceId, parentId, position])
+  @@map("test_case_folders")
+}
+
+model TestCaseCatalog {
+  projectSpaceId String       @id @map("project_space_id") @db.Uuid
+  version        Int          @default(1)
+  updatedById    String?      @map("updated_by_id") @db.Uuid
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  projectSpace   ProjectSpace @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  updatedBy      User?        @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("test_case_catalogs")
+}
+
+model TestCaseExecution {
+  id           String           @id @default(uuid()) @db.Uuid
+  testCaseId   String           @map("test_case_id") @db.Uuid
+  executedById String           @map("executed_by_id") @db.Uuid
+  status       TestResultStatus
+  actualResult String?          @map("actual_result") @db.Text
+  environment  String?          @db.VarChar(500)
+  stepResults  Json?            @map("step_results")
+  stepNotes    Json?            @map("step_notes")
+  startedAt    DateTime?        @map("started_at") @db.Timestamptz(3)
+  completedAt  DateTime         @default(now()) @map("completed_at") @db.Timestamptz(3)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  testCase     TestCase         @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  executedBy   User             @relation(fields: [executedById], references: [id])
+
+  @@index([testCaseId, completedAt(sort: Desc)])
+  @@index([executedById, completedAt(sort: Desc)])
+  @@map("test_case_executions")
+}
+
+model TestCaseHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  testCaseId  String   @map("test_case_id") @db.Uuid
+  actorId     String   @map("actor_id") @db.Uuid
+  action      String   @db.VarChar(80)
+  fromVersion Int?     @map("from_version")
+  toVersion   Int      @map("to_version")
+  changes     Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  testCase    TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  actor       User     @relation(fields: [actorId], references: [id])
+
+  @@index([testCaseId, createdAt(sort: Desc)])
+  @@map("test_case_history")
+}
+
+model TestCaseNode {
+  id             String         @id @default(uuid()) @db.Uuid
+  projectSpaceId String         @map("project_space_id") @db.Uuid
+  testCaseId     String?        @map("test_case_id") @db.Uuid
+  parentId       String?        @map("parent_id") @db.Uuid
+  type           TestNodeType
+  title          String         @db.VarChar(500)
+  content        Json?
+  position       Int            @default(0)
+  version        Int            @default(1)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  projectSpace   ProjectSpace   @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  testCase       TestCase?      @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  parent         TestCaseNode?  @relation("TestNodeTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children       TestCaseNode[] @relation("TestNodeTree")
+
+  @@index([projectSpaceId, parentId, position])
+  @@index([testCaseId])
+  @@map("test_case_nodes")
+}
+
+model CodeChange {
+  id             String       @id @default(uuid()) @db.Uuid
+  projectSpaceId String       @map("project_space_id") @db.Uuid
+  provider       GitProvider
+  repositoryKey  String       @map("repository_key") @db.VarChar(500)
+  commitSha      String       @map("commit_sha") @db.VarChar(64)
+  title          String       @db.VarChar(500)
+  authorName     String?      @map("author_name") @db.VarChar(160)
+  authorEmail    String?      @map("author_email") @db.VarChar(320)
+  committedAt    DateTime     @map("committed_at") @db.Timestamptz(3)
+  metadata       Json?
+  projectSpace   ProjectSpace @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, repositoryKey, commitSha])
+  @@index([projectSpaceId, committedAt(sort: Desc)])
+  @@map("code_changes")
+}
+
+model Notification {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  projectSpaceId String?            @map("project_space_id") @db.Uuid
+  type           String             @db.VarChar(100)
+  title          String             @db.VarChar(300)
+  body           String?            @db.Text
+  status         NotificationStatus @default(PENDING)
+  dedupeKey      String?            @map("dedupe_key") @db.VarChar(255)
+  readAt         DateTime?          @map("read_at") @db.Timestamptz(3)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectSpace   ProjectSpace?      @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, status, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model WebhookConfig {
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  projectSpaceId    String?         @map("project_space_id") @db.Uuid
+  provider          WebhookProvider
+  name              String          @db.VarChar(120)
+  encryptedEndpoint String?         @map("encrypted_endpoint") @db.Text
+  encryptedSecret   String?         @map("encrypted_secret") @db.Text
+  enabled           Boolean         @default(false)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectSpace      ProjectSpace?   @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, projectSpaceId, provider, name])
+  @@map("webhook_configs")
+}
+
+model AuditLog {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  projectSpaceId String?       @map("project_space_id") @db.Uuid
+  actorId        String?       @map("actor_id") @db.Uuid
+  action         String        @db.VarChar(120)
+  resourceType   String        @map("resource_type") @db.VarChar(120)
+  resourceId     String?       @map("resource_id") @db.VarChar(100)
+  requestId      String?       @map("request_id") @db.VarChar(100)
+  metadata       Json?
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectSpace   ProjectSpace? @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  actor          User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([projectSpaceId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model OutboxEvent {
+  id            String    @id @default(uuid()) @db.Uuid
+  aggregateType String    @map("aggregate_type") @db.VarChar(120)
+  aggregateId   String    @map("aggregate_id") @db.VarChar(100)
+  eventType     String    @map("event_type") @db.VarChar(160)
+  payload       Json
+  occurredAt    DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(3)
+  attempts      Int       @default(0)
+
+  @@index([processedAt, occurredAt])
+  @@map("outbox_events")
+}
