@@ -10,7 +10,7 @@
     "apps/*"
   ],
   "overrides": {
-    "ajv": "8.18.0"
+    "ajv": "8.20.0"
   },
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -32,6 +32,6 @@
     "prisma:bootstrap": "npm run prisma:bootstrap --workspace=@veritab/api"
   },
   "devDependencies": {
-    "ajv": "8.18.0"
+    "ajv": "8.20.0"
   }
 }
