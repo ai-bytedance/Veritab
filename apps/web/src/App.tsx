@@ -8,17 +8,8 @@ import {
   Project,
   User as SystemUser,
   UserGroup,
-  Issue,
-  TestCase,
-  Folder,
   SystemConfig,
   ProjectTab,
-  IssueType,
-  RequirementPriority,
-  DefectSeverity,
-  DefectStatus,
-  TestCaseGrade,
-  TestCaseStatus
 } from "./types";
 import { DEFAULT_SYSTEM_CONFIG } from "./config/defaults";
 import Sidebar from "./components/Sidebar";
@@ -26,7 +17,6 @@ import PromptMissingModal from "./components/PromptMissingModal";
 import LoginModal from "./components/LoginModal";
 import PersonalCenterModal from "./components/PersonalCenterModal";
 import { Sparkles, HelpCircle, BookmarkCheck, AlertOctagon, FolderGit2, FileCheck2, BarChart4, Settings, ShieldCheck, GitCommit, GitBranch, Globe } from "lucide-react";
-import { generateCaseId } from "./lib/idUtils";
 import { apiRequest, authApi } from "./api/httpClient";
 import { RequirementApiScope } from "./features/requirements/api/types";
 import { useGitIntegrations } from "./features/git-integrations/api/useGitIntegrations";
@@ -53,9 +43,6 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [testCases, setTestCases] = useState<TestCase[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
 
   const [currentUser, setCurrentUser] = useState<SystemUser>({ id: "", username: "", nickname: "未登录", email: "", group: "server-managed", status: "active", role: "member" });
@@ -139,7 +126,7 @@ export default function App() {
   useEffect(() => {
     if (isLoggedOut || !requirementApiScope) return;
     let cancelled = false;
-    void apiRequest<{ id: string; name: string; description: string | null; createdAt: string }>(
+    void apiRequest<{ id: string; name: string; description: string | null; version: number; createdAt: string }>(
       `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
     ).then((space) => {
       if (cancelled) return;
@@ -150,6 +137,7 @@ export default function App() {
         repoType: "none",
         repoUrl: "",
         createdAt: space.createdAt,
+        version: space.version,
       };
       setProjects([project]);
       setSelectedProjectId(project.id);
@@ -184,20 +172,6 @@ export default function App() {
     setProjects(updated);
   };
 
-  const updateIssues = (updated: Issue[]) => {
-    setIssues(updated);
-  };
-
-  const updateTestCases = (updated: TestCase[] | ((prev: TestCase[]) => TestCase[])) => {
-    setTestCases((prev) => {
-      const next = typeof updated === "function" ? updated(prev) : updated;
-      return next;
-    });
-  };
-
-  const updateFolders = (updated: Folder[]) => {
-    setFolders(updated);
-  };
 
   const updateSystemConfig = (updated: SystemConfig) => {
     setSystemConfig(updated);
@@ -289,84 +263,24 @@ export default function App() {
 
   // Helper actions
 
-  const handleUpdateActiveProject = (updated: Project) => {
-    const list = projects.map((p) => (p.id === updated.id ? updated : p));
-    updateProjects(list);
-  };
-
-  // Issues manipulations
-  const handleAddIssue = (created: Issue) => {
-    updateIssues([...issues, created]);
-  };
-
-  const handleUpdateIssue = (updated: Issue) => {
-    updateIssues(issues.map((i) => (i.id === updated.id ? updated : i)));
-  };
-
-  const handleDeleteIssue = (id: string) => {
-    updateIssues(issues.filter((i) => i.id !== id));
-  };
-
-  // TestCase operations
-  const handleAddTestCase = (tc: TestCase) => {
-    updateTestCases((prev) => [...prev, tc]);
-  };
-
-  const handleUpdateTestCase = (updated: TestCase) => {
-    updateTestCases((prev) => prev.map((tc) => (tc.id === updated.id ? updated : tc)));
-  };
-
-  const handleDeleteTestCase = (id: string) => {
-    updateTestCases((prev) => prev.filter((tc) => tc.id !== id));
-    // Clean up corresponding tracking data in issues (both source defect links and linkToTestCases)
-    const updatedIssues = issues.map((issue) => {
-      let changed = false;
-      let newLinkToTestCases = issue.linkToTestCases;
-      if (issue.linkToTestCases?.includes(id)) {
-        newLinkToTestCases = issue.linkToTestCases.filter((tcId) => tcId !== id);
-        changed = true;
-      }
-      if (changed) {
-        return { ...issue, linkToTestCases: newLinkToTestCases };
-      }
-      return issue;
-    });
-    if (updatedIssues.some((ui, index) => ui !== issues[index])) {
-      updateIssues(updatedIssues);
-    }
-  };
-
-  const handleDeleteTestCaseBatch = (ids: string[]) => {
-    updateTestCases(testCases.filter((tc) => !ids.includes(tc.id)));
-    // Clean up corresponding tracking data in issues
-    const updatedIssues = issues.map((issue) => {
-      let changed = false;
-      let newLinkToTestCases = issue.linkToTestCases;
-      if (issue.linkToTestCases?.some(id => ids.includes(id))) {
-        newLinkToTestCases = issue.linkToTestCases.filter((tcId) => !ids.includes(tcId));
-        changed = true;
-      }
-      if (changed) {
-        return { ...issue, linkToTestCases: newLinkToTestCases };
-      }
-      return issue;
-    });
-    if (updatedIssues.some((ui, index) => ui !== issues[index])) {
-      updateIssues(updatedIssues);
-    }
-  };
-
-  const handleAddTestCaseBatch = (casesList: TestCase[]) => {
-    updateTestCases([...testCases, ...casesList]);
-  };
-
   const activeProject = projects.find((p) => p.id === selectedProjectId);
+  const handleUpdateActiveProject = async (input: { name: string; description: string }) => {
+    if (!requirementApiScope || !activeProject) throw new Error("当前空间上下文不可用。");
+    const updated = await apiRequest<{ id: string; name: string; description: string | null; version: number; createdAt: string }>(
+      `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
+      { method: "PATCH", body: JSON.stringify({ ...input, version: activeProject.version }) },
+    );
+    setProjects((current) => current.map((project) => project.id === updated.id ? {
+      ...project,
+      name: updated.name,
+      description: updated.description || "",
+      version: updated.version,
+    } : project));
+  };
   const connectedRepository = requirementApiScope ? gitIntegration.repository : undefined;
   const displayedRepositoryType = connectedRepository
     ? connectedRepository.provider.toLowerCase()
-    : requirementApiScope
-      ? "none"
-      : activeProject?.repoType || "none";
+    : "none";
   const displayedDefaultBranch = connectedRepository?.defaultBranch || "main";
 
   return (
@@ -482,51 +396,26 @@ export default function App() {
               {activeTab === ProjectTab.OVERVIEW && (
                 <ProjectSpace
                   project={activeProject}
-                  onUpdateProject={handleUpdateActiveProject}
-                  issues={issues}
-                  testCases={testCases}
                   onInvokeAI={handleInvokeAI}
-                  onAddTestCase={(tcData) => {
-                    const newId = generateCaseId();
-                    handleAddTestCase({
-                      id: newId,
-                      projectId: activeProject.id,
-                      name: tcData.name || "新测试用例",
-                      grade: tcData.grade || TestCaseGrade.P1,
-                      status: tcData.status || TestCaseStatus.UNTESTED,
-                      precondition: tcData.precondition || "",
-                      steps: tcData.steps || "",
-                      expectedResult: tcData.expectedResult || "",
-                      historyLogs: tcData.historyLogs || []
-                    } as any);
-                  }}
-                  currentUser={currentUser}
-                  userGroups={userGroups}
+                  users={users}
                   apiScope={requirementApiScope}
+                  onUpdateProject={handleUpdateActiveProject}
                 />
               )}
 
               {activeTab === ProjectTab.REQUIREMENT && (
                 <RequirementsBoard
                   projectId={selectedProjectId}
-                  issues={issues}
-                  testCases={testCases}
                   users={users}
-                  onAddIssue={handleAddIssue}
-                  onUpdateIssue={handleUpdateIssue}
-                  onDeleteIssue={handleDeleteIssue}
-                  onDeleteTestCase={handleDeleteTestCase}
                   onInvokeAI={handleInvokeAI}
                   onTriggerWebhook={handleTriggerWebhook}
                   onCreateFeishuGroup={handleCreateFeishuGroup}
-                  onAddTestCaseBatch={handleAddTestCaseBatch}
                   onNavigateToTab={setActiveTab}
                   onFocusTestCase={setFocusedTestCaseId}
                   focusedRequirementId={focusedTestCaseId}
                   onFocusRequirement={setFocusedTestCaseId}
                   systemConfig={systemConfig}
                   onPromptMissing={() => setIsPromptMissingOpen(true)}
-                  onUpdateTestCase={handleUpdateTestCase}
                   currentUser={currentUser}
                   userGroups={userGroups}
                   apiScope={requirementApiScope}
@@ -536,20 +425,14 @@ export default function App() {
               {activeTab === ProjectTab.DEFECT && (
                 <DefectsBoard
                   projectId={selectedProjectId}
-                  issues={issues}
-                  testCases={testCases}
                   users={users}
                   currentUser={currentUser}
-                  onAddIssue={handleAddIssue}
-                  onUpdateIssue={handleUpdateIssue}
-                  onDeleteIssue={handleDeleteIssue}
                   onInvokeAI={handleInvokeAI}
                   onTriggerWebhook={handleTriggerWebhook}
                   onCreateFeishuGroup={handleCreateFeishuGroup}
                   systemConfig={systemConfig}
                   focusedDefectId={focusedTestCaseId}
                   onFocusDefect={setFocusedTestCaseId}
-                  onUpdateTestCase={handleUpdateTestCase}
                   userGroups={userGroups}
                   apiScope={requirementApiScope}
                 />
@@ -558,17 +441,8 @@ export default function App() {
               {activeTab === ProjectTab.TESTCASE && (
                 <TestCaseWorkspace
                   projectId={selectedProjectId}
-                  testCases={testCases}
-                  folders={folders}
-                  issues={issues}
                   users={users}
                   currentUser={currentUser}
-                  onAddTestCase={handleAddTestCase}
-                  onUpdateTestCase={handleUpdateTestCase}
-                  onDeleteTestCase={handleDeleteTestCase}
-                  onDeleteTestCaseBatch={handleDeleteTestCaseBatch}
-                  onUpdateFolders={updateFolders}
-                  onAddIssue={handleAddIssue}
                   onInvokeAI={handleInvokeAI}
                   onTriggerWebhook={handleTriggerWebhook}
                   onCreateFeishuGroup={handleCreateFeishuGroup}
@@ -585,20 +459,8 @@ export default function App() {
               {activeTab === ProjectTab.CODE_CHANGES && (
                 <CodeChangesBoard
                   project={projects.find((p) => p.id === selectedProjectId)!}
-                  onUpdateProject={(p) =>
-                    updateProjects(projects.map((proj) => (proj.id === p.id ? p : proj)))
-                  }
-                  issues={issues}
-                  testCases={testCases}
                   onInvokeAI={handleInvokeAI}
-                  onAddTestCase={(tc) => {
-                    const newCase = { ...tc, id: generateCaseId() } as TestCase;
-                    updateTestCases((prev) => [newCase, ...prev]);
-                  }}
-                  onAddIssue={handleAddIssue}
-                  users={users}
                   currentUser={currentUser}
-                  userGroups={userGroups}
                   apiScope={requirementApiScope}
                 />
               )}
@@ -606,8 +468,7 @@ export default function App() {
               {activeTab === ProjectTab.METRICS && (
                 <MetricsDashboard
                   projects={projects}
-                  issues={issues}
-                  testCases={testCases}
+                  apiScope={requirementApiScope}
                 />
               )}
 

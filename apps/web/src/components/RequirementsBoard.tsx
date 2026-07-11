@@ -36,7 +36,6 @@ import {
   TestCaseStatus,
   DefectStatus,
 } from "../types";
-import { checkPermission } from "../lib/permission";
 import { Lock } from "lucide-react";
 import { robustJsonParse, mapAITestCase } from "../lib/aiUtils";
 import RequirementDetailPanel from "./RequirementDetailPanel";
@@ -49,6 +48,8 @@ import TraceabilityListModal from "./TraceabilityListModal";
 import CustomSelect from "./CustomSelect";
 import { priorityToApi, statusToApi, useRequirementBridge } from "../features/requirements/api/useRequirements";
 import { RequirementApiScope } from "../features/requirements/api/types";
+import { useDefectBridge } from "../features/defects/api/useDefects";
+import { useTestCaseBridge } from "../features/test-cases/api/useTestCases";
 
 const formatDateToSeconds = (dateVal: string | number | Date) => {
   if (!dateVal) return "暂无";
@@ -66,49 +67,33 @@ const formatDateToSeconds = (dateVal: string | number | Date) => {
 
 interface RequirementsBoardProps {
   projectId: string;
-  issues: Issue[];
-  testCases: TestCase[];
   users: SystemUser[];
-  onAddIssue: (issue: Issue) => void;
-  onUpdateIssue: (issue: Issue) => void;
-  onDeleteIssue: (id: string) => void;
-  onDeleteTestCase: (id: string) => void;
   onInvokeAI: (prompt: string) => Promise<string>;
   onTriggerWebhook: (provider: string, payload: any) => void;
   onCreateFeishuGroup?: (payload: any) => Promise<any>;
-  onAddTestCaseBatch: (cases: TestCase[]) => void;
   onNavigateToTab?: (tab: ProjectTab) => void;
   onFocusTestCase?: (id: string) => void;
   focusedRequirementId?: string | null;
   onFocusRequirement?: (id: string | null) => void;
   systemConfig: SystemConfig;
   onPromptMissing?: () => void;
-  onUpdateTestCase?: (tc: TestCase) => void;
   currentUser?: SystemUser | null;
   userGroups?: UserGroup[];
-  apiScope?: RequirementApiScope;
+  apiScope: RequirementApiScope;
 }
 
 export default function RequirementsBoard({
   projectId,
-  issues: localIssues,
-  testCases,
   users,
-  onAddIssue,
-  onUpdateIssue,
-  onDeleteIssue,
-  onDeleteTestCase,
   onInvokeAI,
   onTriggerWebhook,
   onCreateFeishuGroup,
-  onAddTestCaseBatch,
   onNavigateToTab,
   onFocusTestCase,
   focusedRequirementId,
   onFocusRequirement,
   systemConfig,
   onPromptMissing,
-  onUpdateTestCase,
   currentUser = null,
   userGroups = [],
   apiScope,
@@ -123,37 +108,16 @@ export default function RequirementsBoard({
     }, 3000);
   };
 
-  const checkActionPermission = (action: string) => {
-    // Remote mode treats the backend Guard as the authorization source of truth.
-    if (apiScope) return true;
-    return checkPermission(currentUser, userGroups, ProjectTab.REQUIREMENT, action);
-  };
-
   const safeAddIssue = (issue: Issue) => {
-    if (!checkActionPermission("create")) {
-      showToast("⚠️ 您所属的工作群组无权进行“新建需求”操作！", "warning");
-      return;
-    }
-    if (apiScope) remote.createIssue(issue);
-    else onAddIssue(issue);
+    void remote.createIssue(issue);
   };
 
   const safeUpdateIssue = (issue: Issue) => {
-    if (!checkActionPermission("edit")) {
-      showToast("⚠️ 您所属的工作群组无权进行“修改需求基本内容/描述”操作！", "warning");
-      return;
-    }
-    if (apiScope) remote.updateIssue(issue);
-    else onUpdateIssue(issue);
+    void remote.updateIssue(issue);
   };
 
   const safeDeleteIssue = (id: string) => {
-    if (!checkActionPermission("delete")) {
-      showToast("⚠️ 您所属的工作群组无权进行“条目删除”操作！", "warning");
-      return;
-    }
-    if (apiScope) remote.deleteIssue(id);
-    else onDeleteIssue(id);
+    void remote.deleteIssue(id);
   };
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatusFilter, setSelectedStatusFilter] =
@@ -190,12 +154,14 @@ export default function RequirementsBoard({
     sortBy: "updatedAt",
     sortDirection: "desc",
   });
-  const issues = apiScope
-    ? [
-        ...localIssues.filter((issue) => issue.type !== IssueType.REQUIREMENT || issue.projectId !== projectId),
-        ...remote.issues,
-      ]
-    : localIssues;
+  const defectRemote = useDefectBridge(apiScope, projectId);
+  const testCaseRemote = useTestCaseBridge(apiScope, projectId);
+  const issues = [...remote.issues, ...defectRemote.issues];
+  const testCases = testCaseRemote.testCases;
+  const onDeleteTestCase = testCaseRemote.deleteTestCase;
+  const onAddTestCaseBatch = (cases: TestCase[]) => cases.forEach(testCaseRemote.createTestCase);
+  const onUpdateTestCase = testCaseRemote.updateTestCase;
+  const onUpdateIssue = remote.updateIssue;
   const filteredRequirements = issues.filter(
     (issue) => issue.projectId === projectId && issue.type === IssueType.REQUIREMENT,
   );
@@ -302,10 +268,6 @@ export default function RequirementsBoard({
   const handleRequirementStatusChange = (statusVal: RequirementStatus) => {
     if (!activeIssue) return;
 
-    if (!checkActionPermission("status_flow")) {
-      showToast("⚠️ 您所属的工作群组无权进行“需求流转状态变更”操作！", "warning");
-      return;
-    }
 
     onUpdateIssue({
       ...activeIssue,
@@ -367,10 +329,6 @@ export default function RequirementsBoard({
   const handleAIGeneratedCase = async () => {
     if (!activeIssue) return;
 
-    if (!checkActionPermission("ai_analysis")) {
-      showToast("⚠️ 您所属的工作群组无权进行“需求 AI 契约深度分析”操作！", "warning");
-      return;
-    }
 
     if (
       !systemConfig?.aiPromptTemplate ||
@@ -481,15 +439,13 @@ ${activeIssue.content}
       }));
     }
 
-    if (onUpdateTestCase) {
-      const tc = testCases.find((t) => t.id === caseId);
-      if (tc && tc.linkedRequirementId === issueId) {
-        onUpdateTestCase({
+    const tc = testCases.find((t) => t.id === caseId);
+    if (tc && tc.linkedRequirementId === issueId) {
+      onUpdateTestCase({
           ...tc,
           linkedRequirementId: undefined,
           updatedAt: new Date().toISOString(),
-        });
-      }
+      });
     }
   };
 
@@ -582,14 +538,10 @@ ${activeIssue.content}
   });
 
   // Pagination bounds
-  const totalPages = Math.ceil((apiScope ? remote.total : searchFiltered.length) / pageSize);
+  const totalPages = Math.ceil(remote.total / pageSize);
   const activePage = Math.min(currentPage, Math.max(1, totalPages));
-  const paginatedRequirements = apiScope
-    ? searchFiltered
-    : searchFiltered.slice((activePage - 1) * pageSize, activePage * pageSize);
-  const boardTotal = apiScope
-    ? Object.values(remote.statusCounts).reduce((sum, count) => sum + (count || 0), 0)
-    : filteredRequirements.length;
+  const paginatedRequirements = searchFiltered;
+  const boardTotal = Object.values(remote.statusCounts).reduce((sum, count) => sum + (count || 0), 0);
   const boardStatusCount = (status: "DRAFT" | "UNDER_REVIEW" | "IN_PROGRESS" | "TESTING" | "ACCEPTING" | "DONE") =>
     remote.statusCounts[status] || 0;
 
@@ -598,7 +550,7 @@ ${activeIssue.content}
       className="space-y-6 animate-fade-in text-left"
       id="requirements-board-wrapper"
     >
-      {apiScope && (remote.isLoading || remote.isSaving) && (
+      {(remote.isLoading || remote.isSaving) && (
         <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700">
           {remote.isLoading ? "正在从服务端加载需求…" : "正在安全保存需求变更…"}
         </div>
@@ -622,7 +574,7 @@ ${activeIssue.content}
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">待评审/草稿</p>
             <h4 className="text-xl font-black text-slate-700 font-mono mt-0.5">
-              {apiScope ? boardStatusCount("DRAFT") + boardStatusCount("UNDER_REVIEW") : filteredRequirements.filter(r => r.requirementStatus === RequirementStatus.DRAFT || r.requirementStatus === RequirementStatus.UNDER_REVIEW).length}
+              {boardStatusCount("DRAFT") + boardStatusCount("UNDER_REVIEW")}
             </h4>
           </div>
         </div>
@@ -634,7 +586,7 @@ ${activeIssue.content}
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">开发中</p>
             <h4 className="text-xl font-black text-sky-600 font-mono mt-0.5">
-              {apiScope ? boardStatusCount("IN_PROGRESS") : filteredRequirements.filter(r => r.requirementStatus === RequirementStatus.DEVELOPING).length}
+              {boardStatusCount("IN_PROGRESS")}
             </h4>
           </div>
         </div>
@@ -646,7 +598,7 @@ ${activeIssue.content}
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">测试验收中</p>
             <h4 className="text-xl font-black text-indigo-600 font-mono mt-0.5">
-              {apiScope ? boardStatusCount("TESTING") + boardStatusCount("ACCEPTING") : filteredRequirements.filter(r => r.requirementStatus === RequirementStatus.TESTING || r.requirementStatus === RequirementStatus.ACCEPTING).length}
+              {boardStatusCount("TESTING") + boardStatusCount("ACCEPTING")}
             </h4>
           </div>
         </div>
@@ -658,7 +610,7 @@ ${activeIssue.content}
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">已完成归档</p>
             <h4 className="text-xl font-black text-emerald-600 font-mono mt-0.5">
-              {apiScope ? boardStatusCount("DONE") : filteredRequirements.filter(r => r.requirementStatus === RequirementStatus.COMPLETED).length}
+              {boardStatusCount("DONE")}
             </h4>
           </div>
         </div>
@@ -825,14 +777,9 @@ ${activeIssue.content}
             <div className="flex items-center gap-2 shrink-0 select-none">
               <button
                 onClick={handleCreate}
-                className={`px-3.5 py-2 text-white text-xs font-black rounded-xl shadow-3xs transition-all flex items-center gap-1.5 cursor-pointer outline-none focus:outline-none ${
-                  checkActionPermission("create")
-                    ? "bg-indigo-600 hover:bg-indigo-700 active:scale-95 hover:shadow-2xs"
-                    : "bg-slate-400 hover:bg-slate-500 opacity-80"
-                }`}
+                className="px-3.5 py-2 text-white text-xs font-black rounded-xl shadow-3xs transition-all flex items-center gap-1.5 cursor-pointer outline-none focus:outline-none bg-indigo-600 hover:bg-indigo-700 active:scale-95 hover:shadow-2xs"
                 id="btn-overview-create-req"
               >
-                {!checkActionPermission("create") && <Lock className="h-3.5 w-3.5 shrink-0" />}
                 <span className="text-sm font-black">+</span>
                 <span>新建需求</span>
               </button>
@@ -1092,11 +1039,6 @@ ${activeIssue.content}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const hasEditPerm = checkActionPermission("edit");
-                              if (!hasEditPerm) {
-                                showToast("⚠️ 您所属的工作群组无权进行“编辑/修改”操作！", "warning");
-                                return;
-                              }
                               setEditingReq(issue);
                             }}
                             className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 transition-opacity p-1.5 bg-slate-50 hover:bg-indigo-50 rounded-lg cursor-pointer border border-slate-200"
@@ -1107,11 +1049,6 @@ ${activeIssue.content}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const hasDeletePerm = checkActionPermission("delete");
-                              if (!hasDeletePerm) {
-                                showToast("⚠️ 您所属的工作群组无权进行“条目删除”操作！", "warning");
-                                return;
-                              }
                               setReqToDelete(issue);
                             }}
                             className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500 transition-opacity p-1.5 bg-slate-50 hover:bg-rose-50 rounded-lg cursor-pointer border border-slate-200"
@@ -1130,10 +1067,10 @@ ${activeIssue.content}
         </div>
 
         {/* Flat Pagination controls */}
-        {(apiScope ? remote.total : searchFiltered.length) > 0 && (
+        {remote.total > 0 && (
           <Pagination
             currentPage={activePage}
-            totalItems={apiScope ? remote.total : searchFiltered.length}
+            totalItems={remote.total}
             pageSize={pageSize}
             onPageChange={(p) => setCurrentPage(p)}
             onPageSizeChange={(sz) => {

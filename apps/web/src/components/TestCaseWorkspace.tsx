@@ -51,7 +51,6 @@ import {
   ProjectTab,
   UserGroup
 } from "../types";
-import { checkPermission } from "../lib/permission";
 import TestCaseDetailPanel from "./TestCaseDetailPanel";
 import TestCaseCreateForm from "./TestCaseCreateForm";
 import TestCaseDirectoryOverview from "./TestCaseDirectoryOverview";
@@ -64,20 +63,12 @@ import ConfirmDialog from "./ConfirmDialog";
 import { generateCaseId } from "../lib/idUtils";
 import { useTestCaseBridge } from "../features/test-cases/api/useTestCases";
 import { TestCaseApiScope } from "../features/test-cases/api/types";
+import { useDefectBridge } from "../features/defects/api/useDefects";
 
 interface TestCaseWorkspaceProps {
   projectId: string;
-  testCases: TestCase[];
-  folders: FolderType[];
-  issues: Issue[];
   users: SystemUser[];
   currentUser?: SystemUser;
-  onAddTestCase: (tc: TestCase) => void;
-  onUpdateTestCase: (tc: TestCase) => void;
-  onDeleteTestCase: (id: string) => void;
-  onDeleteTestCaseBatch?: (ids: string[]) => void;
-  onUpdateFolders: (folders: FolderType[]) => void;
-  onAddIssue: (issue: Issue) => void;
   onInvokeAI: (prompt: string) => Promise<string>;
   onTriggerWebhook: (provider: string, payload: any) => void;
   onCreateFeishuGroup?: (payload: any) => Promise<any>;
@@ -87,22 +78,13 @@ interface TestCaseWorkspaceProps {
   systemConfig?: any;
   onSetSidebarCollapsed?: (collapsed: boolean) => void;
   userGroups?: UserGroup[];
-  apiScope?: TestCaseApiScope;
+  apiScope: TestCaseApiScope;
 }
 
 export default function TestCaseWorkspace({
   projectId,
-  testCases: localTestCases,
-  folders: localFolders,
-  issues: localIssues,
   users,
   currentUser,
-  onAddTestCase: localOnAddTestCase,
-  onUpdateTestCase: localOnUpdateTestCase,
-  onDeleteTestCase: localOnDeleteTestCase,
-  onDeleteTestCaseBatch: localOnDeleteTestCaseBatch,
-  onUpdateFolders: localOnUpdateFolders,
-  onAddIssue,
   onInvokeAI,
   onTriggerWebhook,
   onCreateFeishuGroup,
@@ -115,14 +97,16 @@ export default function TestCaseWorkspace({
   apiScope,
 }: TestCaseWorkspaceProps) {
   const remote = useTestCaseBridge(apiScope, projectId);
-  const testCases = apiScope ? remote.testCases : localTestCases;
-  const folders = apiScope ? remote.folders : localFolders;
-  const issues = apiScope ? remote.requirements : localIssues;
-  const rawOnAddTestCase = apiScope ? remote.createTestCase : localOnAddTestCase;
-  const rawOnUpdateTestCase = apiScope ? remote.updateTestCase : localOnUpdateTestCase;
-  const rawOnDeleteTestCase = apiScope ? remote.deleteTestCase : localOnDeleteTestCase;
-  const rawOnDeleteTestCaseBatch = apiScope ? remote.deleteTestCases : localOnDeleteTestCaseBatch;
-  const rawOnUpdateFolders = apiScope ? remote.updateFolders : localOnUpdateFolders;
+  const defectRemote = useDefectBridge(apiScope, projectId);
+  const testCases = remote.testCases;
+  const folders = remote.folders;
+  const issues = [...remote.requirements, ...defectRemote.issues];
+  const rawOnAddTestCase = remote.createTestCase;
+  const rawOnUpdateTestCase = remote.updateTestCase;
+  const rawOnDeleteTestCase = remote.deleteTestCase;
+  const rawOnDeleteTestCaseBatch = remote.deleteTestCases;
+  const rawOnUpdateFolders = remote.updateFolders;
+  const onAddIssue = defectRemote.createIssue;
   const filteredCases = testCases.filter((tc) => tc.projectId === projectId);
   const projectFolders = folders.filter(f => f.projectId === projectId);
   const requirements = issues.filter((i) => i.projectId === projectId && i.type === IssueType.REQUIREMENT);
@@ -146,105 +130,15 @@ export default function TestCaseWorkspace({
     }, 3000);
   };
 
-  const checkActionPermission = (action: string) => {
-    if (apiScope) return true;
-    return checkPermission(currentUser || null, userGroups || [], ProjectTab.TESTCASE, action);
-  };
-
-  const onAddTestCase = (tc: TestCase) => {
-    if (!checkActionPermission("create")) {
-      showToast("⚠️ 您所属的工作群组无权进行“新建/导入/AI智能生成用例”操作！", "warning");
-      return;
-    }
-    rawOnAddTestCase(tc);
-  };
-
-  const onUpdateTestCase = (tc: TestCase) => {
-    if (editMode === "xmind") {
-      if (!checkActionPermission("mindmap")) {
-        showToast("⚠️ 您所属的工作群组无权进行“脑图视图关联与结构修改”操作！", "warning");
-        return;
-      }
-    } else {
-      const original = testCases.find(t => t.id === tc.id);
-      if (original) {
-        const isStatusChanged = original.status !== tc.status;
-        const isStepResultsChanged = JSON.stringify(original.stepResults) !== JSON.stringify(tc.stepResults);
-        const isStepNotesChanged = JSON.stringify(original.stepNotes) !== JSON.stringify(tc.stepNotes);
-        const isLinkedDefectChanged = original.linkedDefectId !== tc.linkedDefectId;
-
-        const isNameChanged = original.name !== tc.name;
-        const isGradeChanged = original.grade !== tc.grade;
-        const isPreconditionChanged = original.precondition !== tc.precondition;
-        const isStepsChanged = original.steps !== tc.steps;
-        const isExpectedChanged = original.expectedResult !== tc.expectedResult;
-        const isActualChanged = original.actualResult !== tc.actualResult;
-        const isFolderChanged = original.folderId !== tc.folderId;
-        const isLinkedReqChanged = original.linkedRequirementId !== tc.linkedRequirementId;
-
-        const isBaseFieldChanged = isNameChanged || isGradeChanged || isPreconditionChanged || isStepsChanged || isExpectedChanged || isActualChanged || isFolderChanged || isLinkedReqChanged;
-
-        if (isBaseFieldChanged) {
-          if (!checkActionPermission("edit")) {
-            showToast("⚠️ 您所属的工作群组无权进行“修改用例描述与预置步骤”操作！", "warning");
-            return;
-          }
-        } else if (isStatusChanged || isStepResultsChanged || isStepNotesChanged || isLinkedDefectChanged) {
-          if (!checkActionPermission("execute")) {
-            showToast("⚠️ 您所属的工作群组无权进行“执行测试用例并提报执行结果”操作！", "warning");
-            return;
-          }
-        } else {
-          if (!checkActionPermission("edit")) {
-            showToast("⚠️ 您所属的工作群组无权进行该编辑操作！", "warning");
-            return;
-          }
-        }
-      } else {
-        if (!checkActionPermission("edit")) {
-          showToast("⚠️ 您所属的工作群组无权进行“修改用例描述与预置步骤”操作！", "warning");
-          return;
-        }
-      }
-    }
-    rawOnUpdateTestCase(tc);
-  };
-
-  const onDeleteTestCase = (id: string) => {
-    if (!checkActionPermission("delete")) {
-      showToast("⚠️ 您所属的工作群组无权进行“删除用例”操作！", "warning");
-      return;
-    }
-    rawOnDeleteTestCase(id);
-  };
+  const onAddTestCase = rawOnAddTestCase;
+  const onUpdateTestCase = rawOnUpdateTestCase;
+  const onDeleteTestCase = rawOnDeleteTestCase;
 
   const onDeleteTestCaseBatch = (ids: string[]) => {
-    if (!checkActionPermission("delete")) {
-      showToast("⚠️ 您所属的工作群组无权进行“批量删除用例”操作！", "warning");
-      return;
-    }
-    if (rawOnDeleteTestCaseBatch) {
-      rawOnDeleteTestCaseBatch(ids);
-    }
+    rawOnDeleteTestCaseBatch(ids);
   };
 
   const onUpdateFolders = (updatedFolders: FolderType[]) => {
-    if (updatedFolders.length > folders.length) {
-      if (!checkActionPermission("create")) {
-        showToast("⚠️ 您所属的工作群组无权进行“新建文件夹”操作！", "warning");
-        return;
-      }
-    } else if (updatedFolders.length < folders.length) {
-      if (!checkActionPermission("delete")) {
-        showToast("⚠️ 您所属的工作群组无权进行“删除文件夹”操作！", "warning");
-        return;
-      }
-    } else {
-      if (!checkActionPermission("edit")) {
-        showToast("⚠️ 您所属的工作群组无权进行“移动或重命名文件夹”操作！", "warning");
-        return;
-      }
-    }
     rawOnUpdateFolders(updatedFolders);
   };
 
@@ -589,10 +483,6 @@ export default function TestCaseWorkspace({
   const [aiGeneratingReqId, setAiGeneratingReqId] = useState<string | null>(null);
 
   const handleAIGenerateForReq = async (req: Issue) => {
-    if (!checkActionPermission("ai_generate")) {
-      showToast("⚠️ 您所属的工作群组无权进行“AI 智能推导用例与研判分析”操作！", "warning");
-      return;
-    }
     setAiGeneratingReqId(req.id);
     try {
       const basePrompt = systemConfig?.aiPromptTemplate || `你是一个专业的敏捷质量保障专家。请阅读业务需求规格说明，全自动推断、派生出一组能够完整覆盖上述特征（并且探索边界情况）的测试用例。`;
@@ -822,7 +712,7 @@ ${req.content}
 
   return (
     <div className="space-y-6" id="testcases-workspace-wrapper">
-      {apiScope && (remote.isLoading || remote.isSaving || remote.error) && (
+      {(remote.isLoading || remote.isSaving || remote.error || defectRemote.error) && (
         <div className={`rounded-xl border px-4 py-3 text-xs font-bold ${remote.error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-indigo-100 bg-indigo-50 text-indigo-700"}`}>
           {remote.error
             ? `服务端同步失败：${remote.error instanceof Error ? remote.error.message : "未知错误"}`

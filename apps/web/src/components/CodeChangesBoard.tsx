@@ -9,10 +9,7 @@ import {
   DefectStatus,
   TestCaseGrade,
   TestCaseStatus,
-  UserGroup,
-  ProjectTab
 } from "../types";
-import { checkPermission } from "../lib/permission";
 import {
   GitCommit,
   FileCode2,
@@ -37,38 +34,28 @@ import {
 import { AIStructuredReport, CommitData, FileChange } from "./CodeChangesData.types";
 import { CodeChangesHeader } from "./CodeChangesHeader";
 import { CodeChangesReport } from "./CodeChangesReport";
-import { generateDefectId } from "../lib/idUtils";
+import { generateCaseId, generateDefectId } from "../lib/idUtils";
 import { GitApiScope } from "../features/git-integrations/api/types";
 import { useGitIntegrations } from "../features/git-integrations/api/useGitIntegrations";
+import { useDefectBridge } from "../features/defects/api/useDefects";
+import { useTestCaseBridge } from "../features/test-cases/api/useTestCases";
 
 interface CodeChangesBoardProps {
   project: Project;
-  onUpdateProject: (updated: Project) => void;
-  issues: Issue[];
-  testCases: TestCase[];
   onInvokeAI: (prompt: string) => Promise<string>;
-  onAddTestCase: (testCase: Partial<TestCase>) => void;
-  onAddIssue?: (issue: Issue) => void;
-  users: User[];
   currentUser: User;
-  userGroups?: UserGroup[];
-  apiScope?: GitApiScope;
+  apiScope: GitApiScope;
 }
 
 export default function CodeChangesBoard({
   project,
-  onUpdateProject,
-  issues,
-  testCases,
   onInvokeAI,
-  onAddTestCase,
-  onAddIssue,
-  users,
   currentUser,
-  userGroups,
   apiScope,
 }: CodeChangesBoardProps) {
   const remote = useGitIntegrations(apiScope);
+  const defectRemote = useDefectBridge(apiScope, project.id);
+  const testCaseRemote = useTestCaseBridge(apiScope, project.id);
   const [activeTab, setActiveTab] = useState<"diff" | "repo">("diff");
 
   // Responsive sidebar toggles - default to collapsed on small viewports via useEffect
@@ -76,8 +63,7 @@ export default function CodeChangesBoard({
   const [showFiles, setShowFiles] = useState(true);
 
   // Closed-loop State for Commits & Repo Config
-  const [localCommits] = useState<CommitData[]>([]);
-  const commits = apiScope ? remote.commits : localCommits;
+  const commits = remote.commits;
   const [isSyncing, setIsSyncing] = useState(false);
 
   const [activeCommitHash, setActiveCommitHash] = useState<string>("");
@@ -109,7 +95,7 @@ export default function CodeChangesBoard({
   const activeFile = allFiles[activeFileIndex];
 
   useEffect(() => {
-    if (!apiScope || remote.isLoading) return;
+    if (remote.isLoading) return;
     if (remote.repository) {
       setRepoType(remote.repository.provider === "GITLAB" ? "gitlab" : "github");
       setRepoUrl(remote.repository.webUrl);
@@ -119,7 +105,7 @@ export default function CodeChangesBoard({
       setRepoUrl("");
       setRepoToken("");
     }
-  }, [apiScope, remote.isLoading, remote.repository?.id, remote.repository?.version]);
+  }, [remote.isLoading, remote.repository?.id, remote.repository?.version]);
 
   useEffect(() => {
     if (commits.length && !commits.some((commit) => commit.hash === activeCommitHash)) {
@@ -155,11 +141,6 @@ export default function CodeChangesBoard({
     setTimeout(() => {
       setToastMessage(null);
     }, 4000);
-  };
-
-  const checkActionPermission = (action: "create" | "edit" | "delete") => {
-    if (apiScope) return true;
-    return checkPermission(currentUser || null, userGroups || [], ProjectTab.CODE_CHANGES, action);
   };
 
   const getFileIcon = (filename: string) => {
@@ -204,75 +185,44 @@ export default function CodeChangesBoard({
   };
 
   const handleSyncRepo = async () => {
-    if (!checkActionPermission("create")) {
-      triggerToast("⚠️ 您所属的工作群组无权进行“同步并拉取分支提交记录”操作！");
-      return;
-    }
-    if (!repoUrl || (!repoToken && !(apiScope && remote.repository?.credentialConfigured))) {
-      alert(apiScope ? "请先配置仓库路径与 Secret Manager 凭据引用" : "请先在「仓库配置」中完成访问路径与 Access Token 的设置");
+    if (!repoUrl || (!repoToken && !remote.repository?.credentialConfigured)) {
+      alert("请先配置仓库路径与 Secret Manager 凭据引用");
       setActiveTab("repo");
       return;
     }
-    if (apiScope) {
-      setIsSyncing(true);
-      try {
-        await remote.refresh();
-        setActiveTab("diff");
-        triggerToast(`🔄 已刷新服务端代码变更，共 ${remote.commits.length} 条记录`);
-      } catch (error) {
-        triggerToast(`同步失败：${error instanceof Error ? error.message : "未知错误"}`);
-      } finally {
-        setIsSyncing(false);
-      }
-      return;
+    setIsSyncing(true);
+    try {
+      await remote.refresh();
+      setActiveTab("diff");
+      triggerToast(`🔄 已刷新服务端代码变更，共 ${remote.commits.length} 条记录`);
+    } catch (error) {
+      triggerToast(`同步失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      setIsSyncing(false);
     }
-    triggerToast("当前未启用服务端 Git 集成，请切换到 remote API 模式");
   };
 
   const handleSaveRepo = async () => {
-    if (!checkActionPermission("delete")) {
-      triggerToast("⚠️ 您所属的工作群组无权进行“编辑并保存代码仓配置”操作！");
-      return;
-    }
-    if (!repoUrl || (!repoToken && !(apiScope && remote.repository?.credentialConfigured)) || !defaultBranch) {
-      alert(apiScope ? "请填写仓库地址、分支与凭据引用" : "请填写完整的仓库地址、分支与 Access Token");
+    if (!repoUrl || (!repoToken && !remote.repository?.credentialConfigured) || !defaultBranch) {
+      alert("请填写仓库地址、分支与凭据引用");
       return;
     }
     setIsSavingRepo(true);
 
-    if (apiScope) {
-      try {
-        await remote.saveRepository({ provider: repoType, webUrl: repoUrl, defaultBranch, credentialRef: repoToken || undefined });
-        setSaveSuccess(true);
-        setActiveTab("diff");
-        triggerToast("✅ 仓库配置已安全保存；凭据由 Secret Manager 管理");
-        setTimeout(() => setSaveSuccess(false), 1200);
-      } catch (error) {
-        triggerToast(`保存失败：${error instanceof Error ? error.message : "未知错误"}`);
-      } finally {
-        setIsSavingRepo(false);
-      }
-      return;
-    }
-
-    setTimeout(() => {
-      onUpdateProject({ ...project, repoType, repoUrl });
-      setIsSavingRepo(false);
+    try {
+      await remote.saveRepository({ provider: repoType, webUrl: repoUrl, defaultBranch, credentialRef: repoToken || undefined });
       setSaveSuccess(true);
-
-      setTimeout(() => {
-        setSaveSuccess(false);
-        setActiveTab("diff");
-        triggerToast("仓库地址已保存；启用 remote API 模式后才能同步真实变更");
-      }, 1000);
-    }, 600);
+      setActiveTab("diff");
+      triggerToast("✅ 仓库配置已安全保存；凭据由 Secret Manager 管理");
+      setTimeout(() => setSaveSuccess(false), 1200);
+    } catch (error) {
+      triggerToast(`保存失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      setIsSavingRepo(false);
+    }
   };
 
   const handleAnalyzeDefects = async () => {
-    if (!checkActionPermission("edit")) {
-      triggerToast("⚠️ 您所属的工作群组无权进行“大模型缺陷研判与智能生成”操作！");
-      return;
-    }
     if (!activeFile) return;
     setIsAiAnalyzing(true);
     setStructuredReport(null);
@@ -382,7 +332,9 @@ ${filesContext}
     if (!structuredReport || !structuredReport.testCase) return;
     const tc = structuredReport.testCase;
 
-    onAddTestCase({
+    testCaseRemote.createTestCase({
+      id: generateCaseId(),
+      projectId: project.id,
       name: `[AI 自动生成] ${tc.name}`,
       grade: TestCaseGrade.P1,
       status: TestCaseStatus.UNTESTED,
@@ -397,18 +349,15 @@ ${filesContext}
           action: "AI 生成自动化测试用例并同步入库",
           createdAt: new Date().toISOString()
         }
-      ]
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
 
     triggerToast("🎉 用例同步成功！生成用例已录入「测试管理工作区」主用例树中");
   };
 
   const handleSyncDefectToIssues = (defect: any) => {
-    if (!onAddIssue) {
-      triggerToast("⚠️ 主应用接口未就绪，无法提报缺陷工单");
-      return;
-    }
-
     const newDefect: Issue = {
       id: generateDefectId(),
       projectId: project.id,
@@ -420,7 +369,6 @@ ${filesContext}
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       creatorId: currentUser.id,
-      assigneeId: "usr-wang",
       historyLogs: [
         {
           id: `log-${Date.now()}`,
@@ -430,7 +378,7 @@ ${filesContext}
       ]
     };
 
-    onAddIssue(newDefect);
+    defectRemote.createIssue(newDefect);
     triggerToast(`🚨 缺陷提报成功！工单 [${defect.title}] 已同步至缺陷追踪看板`);
   };
 
@@ -449,7 +397,7 @@ ${filesContext}
         </div>
       )}
 
-      {apiScope && (remote.isLoading || remote.isSaving || remote.error) && (
+      {(remote.isLoading || remote.isSaving || remote.error) && (
         <div className={`mx-4 mt-3 rounded-xl border px-4 py-2 text-xs font-bold ${remote.error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-indigo-100 bg-indigo-50 text-indigo-700"}`}>
           {remote.error
             ? `Git 集成服务异常：${remote.error instanceof Error ? remote.error.message : "未知错误"}`

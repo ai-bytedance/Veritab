@@ -38,7 +38,6 @@ import {
   ProjectTab,
   UserGroup,
 } from "../types";
-import { checkPermission } from "../lib/permission";
 import CreateDefectModal from "./CreateDefectModal";
 import EditDefectModal from "./EditDefectModal";
 import DefectDetailView from "./DefectDetailView";
@@ -51,6 +50,8 @@ import ConfirmDialog from "./ConfirmDialog";
 import CustomSelect from "./CustomSelect";
 import { severityToApi, statusToApi, useDefectBridge } from "../features/defects/api/useDefects";
 import { DefectApiScope } from "../features/defects/api/types";
+import { useRequirementBridge } from "../features/requirements/api/useRequirements";
+import { useTestCaseBridge } from "../features/test-cases/api/useTestCases";
 
 const formatDateToSeconds = (dateVal: string | number | Date) => {
   if (!dateVal) return "暂无";
@@ -68,13 +69,8 @@ const formatDateToSeconds = (dateVal: string | number | Date) => {
 
 interface DefectsBoardProps {
   projectId: string;
-  issues: Issue[];
-  testCases: TestCase[];
   users: SystemUser[];
   currentUser: SystemUser;
-  onAddIssue: (issue: Issue) => void;
-  onUpdateIssue: (issue: Issue) => void;
-  onDeleteIssue: (id: string) => void;
   onTriggerWebhook: (provider: string, payload: any) => void;
   onInvokeAI?: (prompt: string) => Promise<string>;
   onCreateFeishuGroup?: (payload: any) => Promise<any>;
@@ -82,27 +78,20 @@ interface DefectsBoardProps {
   focusedDefectId?: string | null;
   onFocusDefect?: (id: string | null) => void;
   systemConfig?: any;
-  onUpdateTestCase?: (tc: TestCase) => void;
   userGroups?: UserGroup[];
-  apiScope?: DefectApiScope;
+  apiScope: DefectApiScope;
 }
 
 export default function DefectsBoard({
   projectId,
-  issues: localIssues,
-  testCases,
   users,
   currentUser,
-  onAddIssue: onAddIssueLocal,
-  onUpdateIssue: onUpdateIssueLocal,
-  onDeleteIssue: onDeleteIssueLocal,
   onTriggerWebhook,
   onCreateFeishuGroup,
   focusedDefectId,
   onFocusDefect,
   systemConfig,
   onNavigateToTab,
-  onUpdateTestCase,
   userGroups = [],
   apiScope,
 }: DefectsBoardProps) {
@@ -116,33 +105,14 @@ export default function DefectsBoard({
     }, 3000);
   };
 
-  const checkActionPermission = (action: string) => {
-    if (apiScope) return true;
-    return checkPermission(currentUser, userGroups, ProjectTab.DEFECT, action);
-  };
-
-  const safeAddIssue = (issue: Issue) => {
-    if (!checkActionPermission("create")) {
-      showToast("⚠️ 您所属的工作群组无权进行“新建与批量导入缺陷”操作！", "warning");
-      return;
-    }
-    onAddIssue(issue);
-  };
+  const safeAddIssue = (issue: Issue) => void remote.createIssue(issue);
 
   const safeUpdateIssue = (issue: Issue) => {
-    if (!checkActionPermission("edit")) {
-      showToast("⚠️ 您所属的工作群组无权进行“修改缺陷基本信息”操作！", "warning");
-      return;
-    }
-    onUpdateIssue(issue);
+    void remote.updateIssue(issue);
   };
 
   const safeDeleteIssue = (id: string) => {
-    if (!checkActionPermission("delete")) {
-      showToast("⚠️ 您所属的工作群组无权进行“删除缺陷条目”操作！", "warning");
-      return;
-    }
-    onDeleteIssue(id);
+    void remote.deleteIssue(id);
   };
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedStatus, setSelectedStatus] = React.useState<
@@ -214,15 +184,13 @@ export default function DefectsBoard({
     creatorId: selectedCreatorId !== "ALL" ? selectedCreatorId : undefined,
     assigneeId: selectedAssigneeId !== "ALL" ? selectedAssigneeId : undefined,
   });
-  const issues = apiScope
-    ? [
-        ...localIssues.filter((issue) => issue.type !== IssueType.DEFECT || issue.projectId !== projectId),
-        ...remote.issues,
-      ]
-    : localIssues;
-  const onAddIssue = apiScope ? remote.createIssue : onAddIssueLocal;
-  const onUpdateIssue = apiScope ? remote.updateIssue : onUpdateIssueLocal;
-  const onDeleteIssue = apiScope ? remote.deleteIssue : onDeleteIssueLocal;
+  const requirementRemote = useRequirementBridge(apiScope, projectId);
+  const testCaseRemote = useTestCaseBridge(apiScope, projectId);
+  const issues = [...requirementRemote.issues, ...remote.issues];
+  const testCases = testCaseRemote.testCases;
+  const onUpdateTestCase = testCaseRemote.updateTestCase;
+  const onAddIssue = remote.createIssue;
+  const onUpdateIssue = remote.updateIssue;
   const filteredDefects = issues.filter(
     (issue) => issue.projectId === projectId && issue.type === IssueType.DEFECT,
   );
@@ -311,15 +279,13 @@ export default function DefectsBoard({
       }));
     }
 
-    if (onUpdateTestCase) {
-      const tc = testCases.find((t) => t.id === caseId);
-      if (tc && tc.linkedDefectId === issueId) {
-        onUpdateTestCase({
+    const tc = testCases.find((t) => t.id === caseId);
+    if (tc && tc.linkedDefectId === issueId) {
+      onUpdateTestCase({
           ...tc,
           linkedDefectId: undefined,
           updatedAt: new Date().toISOString(),
-        });
-      }
+      });
     }
   };
 
@@ -327,10 +293,6 @@ export default function DefectsBoard({
     if (!activeIssue) return;
     if (activeIssue.defectStatus === status) return;
 
-    if (!checkActionPermission("status_flow")) {
-      showToast("⚠️ 您所属的工作群组无权进行“流转缺陷处理状态”操作！", "warning");
-      return;
-    }
 
     const currentStatus = activeIssue.defectStatus || DefectStatus.NEW;
 
@@ -408,15 +370,7 @@ export default function DefectsBoard({
     if (!activeIssue) return;
 
     if (key === "comments") {
-      if (!checkActionPermission("comment")) {
-        showToast("⚠️ 您所属的工作群组无权进行“发表及回复缺陷评论”操作！", "warning");
-        return;
-      }
     } else {
-      if (!checkActionPermission("edit")) {
-        showToast("⚠️ 您所属的工作群组无权进行“修改缺陷基本信息”操作！", "warning");
-        return;
-      }
     }
 
     const oldValueStr = activeIssue[key];
@@ -705,15 +659,11 @@ export default function DefectsBoard({
     );
   });
 
-  const totalPages = Math.ceil((apiScope ? remote.total : searchFiltered.length) / pageSize);
+  const totalPages = Math.ceil(remote.total / pageSize);
   const activePage = Math.min(currentPage, Math.max(1, totalPages));
-  const paginatedDefectsSide = apiScope
-    ? searchFiltered
-    : searchFiltered.slice((activePage - 1) * pageSize, activePage * pageSize);
+  const paginatedDefectsSide = searchFiltered;
   const defectStatusCount = (status: keyof typeof remote.statusCounts) => remote.statusCounts[status] || 0;
-  const boardTotal = apiScope
-    ? Object.values(remote.statusCounts).reduce((sum, count) => sum + (count || 0), 0)
-    : filteredDefects.length;
+  const boardTotal = Object.values(remote.statusCounts).reduce((sum, count) => sum + (count || 0), 0);
 
   const activeFiltersCount =
     (selectedStatus !== "ALL" ? 1 : 0) +
@@ -726,7 +676,7 @@ export default function DefectsBoard({
       className="space-y-6 animate-fade-in text-left"
       id="defects-board-wrapper"
     >
-      {apiScope && (remote.isLoading || remote.isSaving) && (
+      {(remote.isLoading || remote.isSaving) && (
         <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-2 text-xs font-bold text-rose-700">
           {remote.isLoading ? "正在从服务端加载缺陷…" : "正在安全保存缺陷变更…"}
         </div>
@@ -750,7 +700,7 @@ export default function DefectsBoard({
           <div className="min-w-0">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">待定位排查</p>
             <h4 className="text-lg sm:text-xl font-black text-blue-600 font-mono mt-0.5 truncate">
-              {apiScope ? defectStatusCount("OPEN") + defectStatusCount("REOPENED") : filteredDefects.filter(d => d.defectStatus === DefectStatus.NEW || d.defectStatus === DefectStatus.REOPEN).length}
+              {defectStatusCount("OPEN") + defectStatusCount("REOPENED")}
             </h4>
           </div>
         </div>
@@ -762,7 +712,7 @@ export default function DefectsBoard({
           <div className="min-w-0">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">定位排查中</p>
             <h4 className="text-lg sm:text-xl font-black text-amber-600 font-mono mt-0.5 truncate">
-              {apiScope ? defectStatusCount("CONFIRMED") + defectStatusCount("IN_PROGRESS") : filteredDefects.filter(d => d.defectStatus === DefectStatus.CONFIRMED || d.defectStatus === DefectStatus.PROCESSING).length}
+              {defectStatusCount("CONFIRMED") + defectStatusCount("IN_PROGRESS")}
             </h4>
           </div>
         </div>
@@ -774,7 +724,7 @@ export default function DefectsBoard({
           <div className="min-w-0">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">已修复待验证</p>
             <h4 className="text-lg sm:text-xl font-black text-sky-600 font-mono mt-0.5 truncate">
-              {apiScope ? defectStatusCount("RESOLVED") + defectStatusCount("VERIFIED") : filteredDefects.filter(d => d.defectStatus === DefectStatus.RESOLVED || d.defectStatus === DefectStatus.VERIFIED).length}
+              {defectStatusCount("RESOLVED") + defectStatusCount("VERIFIED")}
             </h4>
           </div>
         </div>
@@ -786,7 +736,7 @@ export default function DefectsBoard({
           <div className="min-w-0">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider truncate">归档验证关闭</p>
             <h4 className="text-lg sm:text-xl font-black text-emerald-600 font-mono mt-0.5 truncate">
-              {apiScope ? defectStatusCount("CLOSED") : filteredDefects.filter(d => d.defectStatus === DefectStatus.CLOSED).length}
+              {defectStatusCount("CLOSED")}
             </h4>
           </div>
         </div>
@@ -1255,10 +1205,10 @@ export default function DefectsBoard({
           </div>
         </div>
 
-        {(apiScope ? remote.total : searchFiltered.length) > 0 && (
+        {remote.total > 0 && (
           <Pagination
             currentPage={activePage}
-            totalItems={apiScope ? remote.total : searchFiltered.length}
+            totalItems={remote.total}
             pageSize={pageSize}
             onPageChange={(p) => setCurrentPage(p)}
             onPageSizeChange={(sz) => {
@@ -1345,10 +1295,6 @@ export default function DefectsBoard({
           currentUser={currentUser}
           onClose={() => setIsCreating(false)}
           onSave={(issue) => {
-            if (!checkActionPermission("create")) {
-              showToast("⚠️ 您所属的工作群组无权进行“新建/导入”缺陷操作！", "warning");
-              return;
-            }
             onAddIssue(issue);
             setIsCreating(false);
 

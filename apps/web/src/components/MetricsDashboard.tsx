@@ -16,20 +16,27 @@ import {
   HelpCircle,
   TrendingDown
 } from "lucide-react";
-import { Project, Issue, IssueType, TestCase, TestCaseStatus, DefectSeverity } from "../types";
+import { Project, IssueType, TestCaseStatus, DefectSeverity } from "../types";
 import CustomSelect from "./CustomSelect";
+import { RequirementApiScope } from "../features/requirements/api/types";
+import { useRequirementBridge } from "../features/requirements/api/useRequirements";
+import { useDefectBridge } from "../features/defects/api/useDefects";
+import { useTestCaseBridge } from "../features/test-cases/api/useTestCases";
 
 interface MetricsDashboardProps {
   projects: Project[];
-  issues: Issue[];
-  testCases: TestCase[];
+  apiScope: RequirementApiScope;
 }
 
 export default function MetricsDashboard({
   projects,
-  issues,
-  testCases,
+  apiScope,
 }: MetricsDashboardProps) {
+  const requirementRemote = useRequirementBridge(apiScope, apiScope.projectSpaceId);
+  const defectRemote = useDefectBridge(apiScope, apiScope.projectSpaceId);
+  const testCaseRemote = useTestCaseBridge(apiScope, apiScope.projectSpaceId);
+  const issues = [...requirementRemote.issues, ...defectRemote.issues];
+  const testCases = testCaseRemote.testCases;
   const [selectedProjId, setSelectedProjId] = useState<string>("all");
 
   // Filtering based on project

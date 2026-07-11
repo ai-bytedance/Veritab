@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../../common/decorators/permissions.decorator";
 import { CreateProjectSpaceDto } from "./dto/create-project-space.dto";
 import { ProjectSpacesService } from "./project-spaces.service";
+import { UpdateProjectSpaceDto } from "./dto/update-project-space.dto";
 
 @ApiTags("Project spaces")
 @ApiBearerAuth()
@@ -37,5 +38,17 @@ export class ProjectSpacesController {
     @Body() dto: CreateProjectSpaceDto,
   ) {
     return this.spaces.create(organizationId, userId, dto);
+  }
+
+  @Patch(":projectSpaceId")
+  @RequirePermissions("space.manage")
+  @ApiOperation({ summary: "Update project-space metadata" })
+  update(
+    @Param("organizationId", ParseUUIDPipe) organizationId: string,
+    @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Body() dto: UpdateProjectSpaceDto,
+  ) {
+    return this.spaces.update(organizationId, projectSpaceId, userId, dto);
   }
 }

@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { CreateProjectSpaceDto } from "./dto/create-project-space.dto";
+import { UpdateProjectSpaceDto } from "./dto/update-project-space.dto";
 
 @Injectable()
 export class ProjectSpacesService {
@@ -42,6 +43,39 @@ export class ProjectSpacesService {
         },
       });
       return space;
+    });
+  }
+
+  async update(organizationId: string, projectSpaceId: string, actorId: string, dto: UpdateProjectSpaceDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.projectSpace.findFirst({
+        where: { id: projectSpaceId, organizationId, archivedAt: null },
+        select: { id: true, version: true },
+      });
+      if (!current) throw new NotFoundException("Project space not found");
+      if (current.version !== dto.version) throw new ConflictException("Project space was modified by another user");
+
+      const updated = await tx.projectSpace.update({
+        where: { id: projectSpaceId },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.description !== undefined ? { description: dto.description.trim() || null } : {}),
+          version: { increment: 1 },
+        },
+        select: { id: true, key: true, name: true, description: true, version: true, createdAt: true, updatedAt: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          projectSpaceId,
+          actorId,
+          action: "space.update",
+          resourceType: "ProjectSpace",
+          resourceId: projectSpaceId,
+          metadata: { previousVersion: current.version, version: updated.version },
+        },
+      });
+      return updated;
     });
   }
 }

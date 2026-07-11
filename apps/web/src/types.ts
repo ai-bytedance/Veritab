@@ -81,6 +81,7 @@ export interface Project {
   repoType: "github" | "gitlab" | "none";
   repoUrl: string;
   createdAt: string;
+  version: number;
   serviceProvider?: string; // 服务供应商
 }
 
