@@ -21,4 +21,5 @@ export const envValidationSchema = Joi.object({
   AI_API_KEY: Joi.string().min(8).optional(),
   AI_MODEL: Joi.string().max(160).optional(),
   AI_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(30000),
+  WEBHOOK_ENCRYPTION_KEY: Joi.string().base64().optional(),
 });

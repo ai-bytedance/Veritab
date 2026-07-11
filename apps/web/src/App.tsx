@@ -231,17 +231,27 @@ export default function App() {
     return response.text;
   };
 
-  /*
-   * Notification delivery is intentionally unavailable until the server-side
-   * outbox worker and encrypted channel configuration are implemented.
-   * Never report a simulated delivery as successful.
-   */
-  const handleTriggerWebhook = async () => {
-    return {
-      success: false,
-      skipped: true,
-      message: "通知服务尚未启用。",
+  const handleTriggerWebhook = async (provider: string, payload: Record<string, unknown>) => {
+    if (!requirementApiScope) throw new Error("当前空间上下文不可用。");
+    const providers: Record<string, "FEISHU" | "WECOM" | "DINGTALK" | "CUSTOM"> = {
+      feishu: "FEISHU",
+      wechat: "WECOM",
+      dingtalk: "DINGTALK",
+      custom: "CUSTOM",
     };
+    const mappedProvider = providers[provider];
+    if (!mappedProvider) throw new Error("不支持的通知渠道。");
+    const title = typeof payload.title === "string" ? payload.title : "Veritab 通知";
+    const body = typeof payload.content === "string" ? payload.content : undefined;
+    const link = typeof payload.link === "string" ? payload.link : undefined;
+    const dedupeSource = typeof payload.type === "string" && typeof payload.itemId === "string"
+      ? `${payload.type}:${payload.itemId}`
+      : undefined;
+    const result = await apiRequest<{ id: string; duplicate: boolean }>(
+      `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}/notifications/requests`,
+      { method: "POST", body: JSON.stringify({ provider: mappedProvider, title, body, link, dedupeKey: dedupeSource }) },
+    );
+    return { success: true, queued: true, duplicate: result.duplicate, message: "通知已进入可靠投递队列。" };
   };
 
 
@@ -277,11 +287,6 @@ export default function App() {
       alert(reason instanceof Error ? reason.message : "默认指令保存失败。");
     }
   };
-  const handleCreateFeishuGroup = async () => ({
-    success: false,
-    message: "飞书群组集成尚未启用。",
-  });
-
   // Helper actions
 
   const activeProject = projects.find((p) => p.id === selectedProjectId);
@@ -430,7 +435,6 @@ export default function App() {
                   users={users}
                   onInvokeAI={handleInvokeAI}
                   onTriggerWebhook={handleTriggerWebhook}
-                  onCreateFeishuGroup={handleCreateFeishuGroup}
                   onNavigateToTab={setActiveTab}
                   onFocusTestCase={setFocusedTestCaseId}
                   focusedRequirementId={focusedTestCaseId}
@@ -450,7 +454,6 @@ export default function App() {
                   currentUser={currentUser}
                   onInvokeAI={handleInvokeAI}
                   onTriggerWebhook={handleTriggerWebhook}
-                  onCreateFeishuGroup={handleCreateFeishuGroup}
                   systemConfig={systemConfig}
                   focusedDefectId={focusedTestCaseId}
                   onFocusDefect={setFocusedTestCaseId}
@@ -466,7 +469,6 @@ export default function App() {
                   currentUser={currentUser}
                   onInvokeAI={handleInvokeAI}
                   onTriggerWebhook={handleTriggerWebhook}
-                  onCreateFeishuGroup={handleCreateFeishuGroup}
                   focusedTestCaseId={focusedTestCaseId}
                   onNavigateToTab={setActiveTab}
                   onFocusIssue={setFocusedTestCaseId}
@@ -500,6 +502,7 @@ export default function App() {
                   projects={projects}
                   currentUser={currentUser}
                   memberApiScope={{ organizationId: requirementApiScope!.organizationId }}
+                  notificationApiScope={requirementApiScope}
                 />
               )}
             </div>

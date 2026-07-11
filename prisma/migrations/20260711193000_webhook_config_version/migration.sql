@@ -1,0 +1,1 @@
+ALTER TABLE "webhook_configs" ADD COLUMN "version" INTEGER NOT NULL DEFAULT 1;

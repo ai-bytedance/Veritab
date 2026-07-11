@@ -27,6 +27,8 @@ import {
 import PromptTemplateSection from "./PromptTemplateSection";
 import RemoteMemberManagement from "./RemoteMemberManagement";
 import { MemberApiScope } from "../features/members/api/types";
+import RemoteNotificationChannels from "./RemoteNotificationChannels";
+import { RequirementApiScope } from "../features/requirements/api/types";
 
 interface SystemConfigPanelProps {
   systemConfig: SystemConfig;
@@ -34,6 +36,7 @@ interface SystemConfigPanelProps {
   projects: Project[];
   currentUser: SystemUser;
   memberApiScope: MemberApiScope;
+  notificationApiScope: RequirementApiScope;
 }
 
 export default function SystemConfigPanel({
@@ -42,6 +45,7 @@ export default function SystemConfigPanel({
   projects,
   currentUser,
   memberApiScope,
+  notificationApiScope,
 }: SystemConfigPanelProps) {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -53,7 +57,7 @@ export default function SystemConfigPanel({
   };
 
   // Tab State
-  const [settingsTab, setSettingsTab] = useState<"project" | "prompt" | "navigation" | "users">("project");
+  const [settingsTab, setSettingsTab] = useState<"project" | "prompt" | "navigation" | "notifications" | "users">("project");
 
   // Project Brand Info states
   const [projectName, setProjectName] = useState(systemConfig.projectName || "Veritab");
@@ -205,6 +209,15 @@ export default function SystemConfigPanel({
         >
           <LayoutGrid className="h-4 w-4" />
           <span>可用菜单</span>
+        </button>
+        <button
+          onClick={() => setSettingsTab("notifications")}
+          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
+            settingsTab === "notifications" ? "bg-white text-indigo-700 shadow-3xs" : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/40"
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          <span>通知渠道</span>
         </button>
         <button
           onClick={() => setSettingsTab("users")}
@@ -389,6 +402,7 @@ export default function SystemConfigPanel({
           <RemoteMemberManagement scope={memberApiScope} currentUser={currentUser} />
         </div>
       )}
+      {settingsTab === "notifications" && <RemoteNotificationChannels scope={notificationApiScope} />}
     </div>
   );
 }

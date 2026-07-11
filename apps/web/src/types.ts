@@ -215,8 +215,6 @@ export interface TestCase {
 
 // Model & System Configuration types
 export interface ConnectionConfig {
-  webhookUrl: string;
-  secret?: string;
   enabled: boolean;
   notifyOnCreate?: boolean; // 新建时发送通知
   notifyOnStatusChange?: boolean; // 状态变更时发送通知

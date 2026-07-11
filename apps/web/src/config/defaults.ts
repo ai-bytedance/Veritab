@@ -1,7 +1,6 @@
 import { ConnectionConfig, SystemConfig } from "../types";
 
 const disabledConnection = (): ConnectionConfig => ({
-  webhookUrl: "",
   enabled: false,
   notifyOnCreate: false,
   notifyOnStatusChange: false,
