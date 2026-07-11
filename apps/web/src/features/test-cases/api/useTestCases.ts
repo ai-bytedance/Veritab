@@ -166,6 +166,7 @@ export function useTestCaseBridge(scope: TestCaseApiScope | undefined, projectId
           ? { ...document, testCases: document.testCases.map((item) => (item.id === updated.id ? updated : item)) }
           : document,
       );
+      void client.invalidateQueries({ queryKey: ["resource-history", "test-cases", scope?.organizationId, scope?.projectSpaceId, updated.id] });
     },
     onError: () => client.invalidateQueries({ queryKey: key }),
   });

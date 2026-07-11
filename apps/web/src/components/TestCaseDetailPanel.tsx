@@ -33,6 +33,8 @@ import TestCaseExecutionWorkspace from "./TestCaseExecutionWorkspace";
 import RegressionHistoryTab from "./RegressionHistoryTab";
 import TestCaseHeaderView from "./TestCaseHeaderView";
 import { generateDefectId } from "../lib/idUtils";
+import { TestCaseApiScope } from "../features/test-cases/api/types";
+import { useResourceHistory } from "../features/history/useResourceHistory";
 
 interface TestCaseDetailPanelProps {
   projectId: string;
@@ -60,10 +62,12 @@ interface TestCaseDetailPanelProps {
   onDeleteTestCase?: (id: string) => void;
   onUpdateFolders?: (folders: FolderType[]) => void;
   userGroups?: UserGroup[];
+  apiScope: TestCaseApiScope;
 }
 
 export default function TestCaseDetailPanel({
   projectId,
+  apiScope,
   activeCase,
   requirements,
   folders,
@@ -89,6 +93,7 @@ export default function TestCaseDetailPanel({
   onUpdateFolders,
   userGroups = []
 }: TestCaseDetailPanelProps) {
+  const historyLogs = useResourceHistory("test-cases", apiScope, activeCase?.id).data;
   const checkActionPermission = (action: string) => {
     return checkPermission(propCurrentUser || null, userGroups || [], ProjectTab.TESTCASE, action);
   };
@@ -647,7 +652,7 @@ ${details.join("\n")}`;
           <div className="flex border-b border-slate-100 pb-px select-none">
             {[
               { id: "execute", label: "分步交互回归", badge: `${Object.values(stepResults).filter(v => v !== "untested").length}/${parsedSteps.length}` },
-              { id: "history", label: "历史回归记录", badge: (activeCase.historyLogs || []).filter(log => log.action?.includes("归档回归报告") || log.action?.includes("归盘回归") || log.newValue?.includes('"results"')).length || null }
+              { id: "history", label: "历史回归记录", badge: historyLogs?.length || null }
             ].map((tab) => {
               const active = innerTab === tab.id;
               return (
@@ -723,9 +728,9 @@ ${details.join("\n")}`;
                   className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-50 text-indigo-600 shadow-3xs cursor-default animate-fade-in"
                 >
                   <span>变更记录</span>
-                  {activeCase.historyLogs && activeCase.historyLogs.length > 0 && (
+                  {historyLogs && historyLogs.length > 0 && (
                     <span className="ml-1.5 text-[9.5px] px-1.5 py-0.2 rounded-full bg-indigo-200/60 text-indigo-700 font-black">
-                      {activeCase.historyLogs.length}
+                      {historyLogs.length}
                     </span>
                   )}
                 </button>
@@ -739,7 +744,7 @@ ${details.join("\n")}`;
                       <p className="text-[10px] text-slate-400 mt-0.5">记录用例属性修改与执行状态变更历史</p>
                     </div>
                   </div>
-                  <HistoryLogTimeline logs={activeCase.historyLogs} />
+                  <HistoryLogTimeline logs={historyLogs} />
                 </div>
               </div>
             </div>

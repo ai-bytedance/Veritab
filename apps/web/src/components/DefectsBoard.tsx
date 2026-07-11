@@ -1252,6 +1252,7 @@ export default function DefectsBoard({
             <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
               <div className="mb-4"><ResourceAttachments scope={apiScope} resourceType="DEFECT" resourceId={activeIssue.id} /></div>
               <DefectDetailView
+                apiScope={apiScope}
                 activeIssue={activeIssue}
                 users={users}
                 testCases={testCases}

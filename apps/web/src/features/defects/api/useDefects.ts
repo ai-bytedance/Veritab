@@ -242,6 +242,7 @@ export function useDefectBridge(
       queryClient.setQueryData<DefectPage>(queryKey, (page) =>
         page ? { ...page, items: page.items.map((item) => (item.id === updated.id ? updated : item)) } : page,
       );
+      void queryClient.invalidateQueries({ queryKey: ["resource-history", "defects", scope?.organizationId, scope?.projectSpaceId, updated.id] });
     },
     onError: () => queryClient.invalidateQueries({ queryKey }),
   });

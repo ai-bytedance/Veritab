@@ -36,6 +36,7 @@ import { robustJsonParse, mapAITestCase } from "../lib/aiUtils";
 import { formatReqId, formatDefectId, generateCaseId } from "../lib/idUtils";
 import ResourceAttachments from "./ResourceAttachments";
 import { RequirementApiScope } from "../features/requirements/api/types";
+import { useResourceHistory } from "../features/history/useResourceHistory";
 
 export interface RequirementDetailPanelProps {
   projectId: string;
@@ -80,6 +81,7 @@ export default function RequirementDetailPanel({
   userGroups = [],
   apiScope,
 }: RequirementDetailPanelProps) {
+  const historyLogs = useResourceHistory("requirements", apiScope, activeIssue.id).data;
   const checkActionPermission = (action: string) => {
     return checkPermission(currentUser || null, userGroups || [], ProjectTab.REQUIREMENT, action);
   };
@@ -775,9 +777,9 @@ ${activeIssue.content}
               className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-50 text-indigo-600 shadow-3xs cursor-default"
             >
               <span>变更记录</span>
-              {activeIssue.historyLogs && activeIssue.historyLogs.length > 0 && (
+              {historyLogs && historyLogs.length > 0 && (
                 <span className="ml-1.5 text-[9.5px] px-1.5 py-0.2 rounded-full bg-indigo-200/60 text-indigo-700 font-black">
-                  {activeIssue.historyLogs.length}
+                  {historyLogs.length}
                 </span>
               )}
             </button>
@@ -791,7 +793,7 @@ ${activeIssue.content}
                   <p className="text-[10px] text-slate-400 mt-0.5">记录需求属性变更与状态流转历史</p>
                 </div>
               </div>
-              <HistoryLogTimeline logs={activeIssue.historyLogs} />
+              <HistoryLogTimeline logs={historyLogs} />
             </div>
           </div>
         </>

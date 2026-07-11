@@ -153,6 +153,7 @@ export function useRequirementBridge(
       queryClient.setQueryData<RequirementPage>(queryKey, (page) =>
         page ? { ...page, items: page.items.map((item) => (item.id === updated.id ? updated : item)) } : page,
       );
+      void queryClient.invalidateQueries({ queryKey: ["resource-history", "requirements", scope?.organizationId, scope?.projectSpaceId, updated.id] });
     },
     onError: () => queryClient.invalidateQueries({ queryKey }),
   });

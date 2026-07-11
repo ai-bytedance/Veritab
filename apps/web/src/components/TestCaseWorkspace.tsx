@@ -977,6 +977,7 @@ ${req.content}
             <div className="flex-1 overflow-y-auto p-4">
               <div className="mb-4"><ResourceAttachments scope={apiScope} resourceType="TEST_CASE" resourceId={activeCase.id} /></div>
               <TestCaseDetailPanel
+                apiScope={apiScope}
                 projectId={projectId}
                 activeCase={activeCase}
                 requirements={requirements}

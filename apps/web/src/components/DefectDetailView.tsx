@@ -39,6 +39,8 @@ import DefectWorkflow from "./DefectWorkflow";
 import HistoryLogTimeline from "./HistoryLogTimeline";
 import DefectCommentsSection from "./DefectCommentsSection";
 import CustomDropdown from "./CustomDropdown";
+import { DefectApiScope } from "../features/defects/api/types";
+import { useResourceHistory } from "../features/history/useResourceHistory";
 
 interface DefectDetailViewProps {
   activeIssue: Issue;
@@ -56,6 +58,7 @@ interface DefectDetailViewProps {
   onCreateFeishuGroup?: (payload: any) => Promise<any>;
   systemConfig?: any;
   userGroups?: UserGroup[];
+  apiScope: DefectApiScope;
 }
 
 const DefectDetailView: React.FC<DefectDetailViewProps> = ({
@@ -73,8 +76,10 @@ const DefectDetailView: React.FC<DefectDetailViewProps> = ({
   onTriggerWebhook,
   onCreateFeishuGroup,
   systemConfig,
-  userGroups = []
+  userGroups = [],
+  apiScope,
 }) => {
+  const historyLogs = useResourceHistory("defects", apiScope, activeIssue.id).data;
   const checkActionPermission = (action: string) => {
     return checkPermission(currentUser || null, userGroups || [], ProjectTab.DEFECT, action);
   };
@@ -678,9 +683,9 @@ const DefectDetailView: React.FC<DefectDetailViewProps> = ({
                 }`}
               >
                 <span>变更记录</span>
-                {activeIssue.historyLogs && activeIssue.historyLogs.length > 0 && (
+                {historyLogs && historyLogs.length > 0 && (
                   <span className={`ml-1.5 text-[9.5px] px-1.5 py-0.2 rounded-full ${activeBottomTab === "history" ? "bg-rose-200/60 text-rose-700" : "bg-slate-100 text-slate-500"} font-black`}>
-                    {activeIssue.historyLogs.length}
+                    {historyLogs.length}
                   </span>
                 )}
               </button>
@@ -704,7 +709,7 @@ const DefectDetailView: React.FC<DefectDetailViewProps> = ({
                       <p className="text-[10px] text-slate-400 mt-0.5">记录缺陷属性修改与状态流转变更历史</p>
                     </div>
                   </div>
-                  <HistoryLogTimeline logs={activeIssue.historyLogs} />
+                  <HistoryLogTimeline logs={historyLogs} />
                 </div>
               )}
             </div>
