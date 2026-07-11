@@ -7,6 +7,7 @@ import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { CreateMemberInvitationDto } from "./dto/create-member-invitation.dto";
 import { UpdateMemberStatusDto } from "./dto/update-member-status.dto";
 import { OrganizationsService } from "./organizations.service";
+import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -25,6 +26,24 @@ export class OrganizationsController {
   @ApiCreatedResponse({ description: "Organization created" })
   create(@CurrentUser("userId") userId: string, @Body() dto: CreateOrganizationDto) {
     return this.organizations.create(userId, dto);
+  }
+
+  @Get(":organizationId/settings")
+  @RequirePermissions("space.read")
+  @ApiOperation({ summary: "Get non-secret organization settings" })
+  getSettings(@Param("organizationId", ParseUUIDPipe) organizationId: string) {
+    return this.organizations.getSettings(organizationId);
+  }
+
+  @Patch(":organizationId/settings")
+  @RequirePermissions("space.manage")
+  @ApiOperation({ summary: "Update non-secret organization settings" })
+  updateSettings(
+    @Param("organizationId", ParseUUIDPipe) organizationId: string,
+    @CurrentUser("userId") actorId: string,
+    @Body() dto: UpdateOrganizationSettingsDto,
+  ) {
+    return this.organizations.updateSettings(organizationId, actorId, dto);
   }
 
   @Get(":organizationId/members")

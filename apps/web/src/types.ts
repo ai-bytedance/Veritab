@@ -230,6 +230,7 @@ export interface ConnectionConfig {
 }
 
 export interface SystemConfig {
+  version: number;
   activeModelProvider: string; // "gemini" | "custom-deepseek" | "custom-qwen" | "custom-openai"
   modelConfigs: {
     [provider: string]: {

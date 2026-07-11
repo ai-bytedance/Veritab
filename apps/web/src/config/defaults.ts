@@ -14,6 +14,7 @@ const disabledConnection = (): ConnectionConfig => ({
 });
 
 export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
+  version: 0,
   activeModelProvider: "unconfigured",
   modelConfigs: {
     unconfigured: { name: "服务端 AI Gateway", modelSlug: "server-managed" },

@@ -126,9 +126,14 @@ export default function App() {
   useEffect(() => {
     if (isLoggedOut || !requirementApiScope) return;
     let cancelled = false;
-    void apiRequest<{ id: string; name: string; description: string | null; version: number; createdAt: string }>(
-      `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
-    ).then((space) => {
+    void Promise.all([
+      apiRequest<{ id: string; name: string; description: string | null; version: number; createdAt: string }>(
+        `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
+      ),
+      apiRequest<{ version: number; brandName: string; brandDescription: string; visibleMenus: string[]; testCasePromptTemplate: string; requirementPromptTemplate: string; defectPromptTemplate: string; reportPromptTemplate: string }>(
+        `/organizations/${requirementApiScope.organizationId}/settings`,
+      ),
+    ]).then(([space, settings]) => {
       if (cancelled) return;
       const project: Project = {
         id: space.id,
@@ -141,6 +146,17 @@ export default function App() {
       };
       setProjects([project]);
       setSelectedProjectId(project.id);
+      setSystemConfig((current) => ({
+        ...current,
+        version: settings.version,
+        projectName: settings.brandName,
+        projectDesc: settings.brandDescription,
+        visibleMenus: settings.visibleMenus,
+        aiPromptTemplate: settings.testCasePromptTemplate,
+        requirementPromptTemplate: settings.requirementPromptTemplate,
+        defectPromptTemplate: settings.defectPromptTemplate,
+        reportPromptTemplate: settings.reportPromptTemplate,
+      }));
     }).catch(() => {
       if (!cancelled) {
         setProjects([]);
@@ -173,8 +189,36 @@ export default function App() {
   };
 
 
-  const updateSystemConfig = (updated: SystemConfig) => {
-    setSystemConfig(updated);
+  const updateSystemConfig = async (updated: SystemConfig) => {
+    if (!requirementApiScope) throw new Error("当前组织上下文不可用。");
+    const saved = await apiRequest<{ version: number; brandName: string; brandDescription: string; visibleMenus: string[]; testCasePromptTemplate: string; requirementPromptTemplate: string; defectPromptTemplate: string; reportPromptTemplate: string }>(
+      `/organizations/${requirementApiScope.organizationId}/settings`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          version: systemConfig.version,
+          brandName: updated.projectName,
+          brandDescription: updated.projectDesc,
+          visibleMenus: updated.visibleMenus,
+          testCasePromptTemplate: updated.aiPromptTemplate,
+          requirementPromptTemplate: updated.requirementPromptTemplate,
+          defectPromptTemplate: updated.defectPromptTemplate,
+          reportPromptTemplate: updated.reportPromptTemplate,
+        }),
+      },
+    );
+    setSystemConfig((current) => ({
+      ...current,
+      ...updated,
+      version: saved.version,
+      projectName: saved.brandName,
+      projectDesc: saved.brandDescription,
+      visibleMenus: saved.visibleMenus,
+      aiPromptTemplate: saved.testCasePromptTemplate,
+      requirementPromptTemplate: saved.requirementPromptTemplate,
+      defectPromptTemplate: saved.defectPromptTemplate,
+      reportPromptTemplate: saved.reportPromptTemplate,
+    }));
   };
 
   // Triggering the generic express back API for multi-model invokes
@@ -201,7 +245,7 @@ export default function App() {
   };
 
 
-  const handleLoadDefaultPrompt = () => {
+  const handleLoadDefaultPrompt = async () => {
     const defaultTemplate = `你是一位顶尖的敏捷软件质控专家与资深测试架构师。针对以下提供的业务需求说明，进行高覆盖度的业务流演进与异常边界探索，并派生出一组标准回归用例。
 
 【测试设计核心指导原则】
@@ -225,9 +269,13 @@ export default function App() {
       ...systemConfig,
       aiPromptTemplate: defaultTemplate,
     };
-    updateSystemConfig(updated);
-    setIsPromptMissingOpen(false);
-    alert("「默认高可靠敏捷质控策略」生成提示规范，已写入全局模型配置，即时生效！");
+    try {
+      await updateSystemConfig(updated);
+      setIsPromptMissingOpen(false);
+      alert("默认用例生成指令已保存并生效。");
+    } catch (reason) {
+      alert(reason instanceof Error ? reason.message : "默认指令保存失败。");
+    }
   };
   const handleCreateFeishuGroup = async () => ({
     success: false,

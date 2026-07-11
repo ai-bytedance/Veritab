@@ -3,10 +3,21 @@ import { MembershipStatus, ScopeType, SubjectType } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { CreateMemberInvitationDto } from "./dto/create-member-invitation.dto";
+import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 
 @Injectable()
 export class OrganizationsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly defaultSettings = {
+    brandName: "Veritab",
+    brandDescription: "敏捷研发管理平台",
+    visibleMenus: ["overview", "requirement", "defect", "testcase", "code_changes", "metrics", "config"],
+    testCasePromptTemplate: "",
+    requirementPromptTemplate: "",
+    defectPromptTemplate: "",
+    reportPromptTemplate: "",
+  };
 
   listForUser(userId: string) {
     return this.prisma.organization.findMany({
@@ -43,6 +54,46 @@ export class OrganizationsService {
         },
       });
       return organization;
+    });
+  }
+
+  async getSettings(organizationId: string) {
+    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
+    if (!organization) throw new NotFoundException("Organization not found");
+    const settings = await this.prisma.organizationSettings.findUnique({ where: { organizationId } });
+    return settings || { organizationId, ...this.defaultSettings, version: 0, createdAt: null, updatedAt: null };
+  }
+
+  async updateSettings(organizationId: string, actorId: string, dto: UpdateOrganizationSettingsDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
+      if (!organization) throw new NotFoundException("Organization not found");
+      const current = await tx.organizationSettings.findUnique({ where: { organizationId } });
+      const currentVersion = current?.version ?? 0;
+      if (currentVersion !== dto.version) throw new ConflictException("Organization settings were modified by another user");
+      const data = {
+        ...(dto.brandName !== undefined ? { brandName: dto.brandName.trim() } : {}),
+        ...(dto.brandDescription !== undefined ? { brandDescription: dto.brandDescription.trim() } : {}),
+        ...(dto.visibleMenus !== undefined ? { visibleMenus: Array.from(new Set([...dto.visibleMenus, "config"])) } : {}),
+        ...(dto.testCasePromptTemplate !== undefined ? { testCasePromptTemplate: dto.testCasePromptTemplate } : {}),
+        ...(dto.requirementPromptTemplate !== undefined ? { requirementPromptTemplate: dto.requirementPromptTemplate } : {}),
+        ...(dto.defectPromptTemplate !== undefined ? { defectPromptTemplate: dto.defectPromptTemplate } : {}),
+        ...(dto.reportPromptTemplate !== undefined ? { reportPromptTemplate: dto.reportPromptTemplate } : {}),
+      };
+      const updated = current
+        ? await tx.organizationSettings.update({ where: { organizationId }, data: { ...data, version: { increment: 1 } } })
+        : await tx.organizationSettings.create({ data: { organizationId, ...this.defaultSettings, ...data, version: 1 } });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          actorId,
+          action: "organization.settings.update",
+          resourceType: "OrganizationSettings",
+          resourceId: organizationId,
+          metadata: { previousVersion: currentVersion, version: updated.version, fields: Object.keys(data) },
+        },
+      });
+      return updated;
     });
   }
 

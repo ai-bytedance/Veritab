@@ -207,8 +207,26 @@ model Organization {
   webhooks          WebhookConfig[]
   auditLogs         AuditLog[]
   invitations       OrganizationInvitation[]
+  settings          OrganizationSettings?
 
   @@map("organizations")
+}
+
+model OrganizationSettings {
+  organizationId            String       @id @map("organization_id") @db.Uuid
+  brandName                  String       @default("Veritab") @map("brand_name") @db.VarChar(80)
+  brandDescription           String       @default("敏捷研发管理平台") @map("brand_description") @db.VarChar(240)
+  visibleMenus               String[]     @default(["overview", "requirement", "defect", "testcase", "code_changes", "metrics", "config"]) @map("visible_menus")
+  testCasePromptTemplate     String       @default("") @map("test_case_prompt_template") @db.Text
+  requirementPromptTemplate String       @default("") @map("requirement_prompt_template") @db.Text
+  defectPromptTemplate      String       @default("") @map("defect_prompt_template") @db.Text
+  reportPromptTemplate      String       @default("") @map("report_prompt_template") @db.Text
+  version                   Int          @default(1)
+  createdAt                 DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_settings")
 }
 
 model OrganizationMember {

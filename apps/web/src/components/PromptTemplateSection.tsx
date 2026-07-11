@@ -4,7 +4,7 @@ import { SystemConfig } from "../types";
 
 interface PromptTemplateSectionProps {
   systemConfig: SystemConfig;
-  onUpdateConfig: (cfg: SystemConfig) => void;
+  onUpdateConfig: (cfg: SystemConfig) => Promise<void>;
   isAdmin: boolean;
   showToast: (message: string, type?: "success" | "error") => void;
 }
@@ -40,7 +40,7 @@ export default function PromptTemplateSection({
     setReportPrompt(systemConfig.reportPromptTemplate || "");
   }, [systemConfig]);
 
-  const handleSave = (type: TemplateType) => {
+  const handleSave = async (type: TemplateType) => {
     if (!isAdmin) {
       showToast("⚠️ 保存失败：只有管理员才能微调全局 Prompt 策略模板！", "error");
       return;
@@ -57,8 +57,12 @@ export default function PromptTemplateSection({
       updatedConfig.reportPromptTemplate = reportPrompt;
     }
 
-    onUpdateConfig(updatedConfig);
-    showToast("🟢 AI 核心指令策略模板已更新并上线生效！", "success");
+    try {
+      await onUpdateConfig(updatedConfig);
+      showToast("🟢 AI 指令模板已保存。", "success");
+    } catch (reason) {
+      showToast(reason instanceof Error ? reason.message : "指令模板保存失败。", "error");
+    }
   };
 
   const handleResetToDefault = (type: TemplateType) => {

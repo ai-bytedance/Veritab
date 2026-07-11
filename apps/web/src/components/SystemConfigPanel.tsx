@@ -30,7 +30,7 @@ import { MemberApiScope } from "../features/members/api/types";
 
 interface SystemConfigPanelProps {
   systemConfig: SystemConfig;
-  onUpdateConfig: (cfg: SystemConfig) => void;
+  onUpdateConfig: (cfg: SystemConfig) => Promise<void>;
   projects: Project[];
   currentUser: SystemUser;
   memberApiScope: MemberApiScope;
@@ -109,7 +109,7 @@ export default function SystemConfigPanel({
     });
   };
 
-  const handleSaveMenuConfig = () => {
+  const handleSaveMenuConfig = async () => {
     if (!isAdmin) {
       showToast("⚠️ 保存失败：只有管理员才能微调全局可用导航菜单权限。", "error");
       return;
@@ -118,14 +118,15 @@ export default function SystemConfigPanel({
     const finalSet = new Set([...visibleMenus, "config"]);
     const savedList = Array.from(finalSet);
 
-    onUpdateConfig({
-      ...systemConfig,
-      visibleMenus: savedList,
-    });
-    showToast("🟢 平台视图可用菜单及系统权限模块已成功更新！请刷新页面或点按即可完成自适应重载。", "success");
+    try {
+      await onUpdateConfig({ ...systemConfig, visibleMenus: savedList });
+      showToast("🟢 平台可用菜单已保存。", "success");
+    } catch (reason) {
+      showToast(reason instanceof Error ? reason.message : "菜单配置保存失败。", "error");
+    }
   };
 
-  const handleSaveProjectInfo = () => {
+  const handleSaveProjectInfo = async () => {
     if (!isAdmin) {
       showToast("⚠️ 保存失败：只有管理员才能更新项目基本信息。", "error");
       return;
@@ -134,12 +135,12 @@ export default function SystemConfigPanel({
       showToast("⚠️ 保存失败：项目名称不能为空！", "error");
       return;
     }
-    onUpdateConfig({
-      ...systemConfig,
-      projectName: projectName.trim(),
-      projectDesc: projectDesc.trim(),
-    });
-    showToast("🟢 项目基本信息已成功更新！", "success");
+    try {
+      await onUpdateConfig({ ...systemConfig, projectName: projectName.trim(), projectDesc: projectDesc.trim() });
+      showToast("🟢 平台基本信息已保存。", "success");
+    } catch (reason) {
+      showToast(reason instanceof Error ? reason.message : "平台信息保存失败。", "error");
+    }
   };
 
   const isAdmin = currentUser.role === "admin";
