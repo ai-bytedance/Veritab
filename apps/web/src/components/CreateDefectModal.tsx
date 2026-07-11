@@ -29,7 +29,7 @@ const CreateDefectModal: React.FC<CreateDefectModalProps> = ({
 }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState(
-    "### 缺陷复现步骤\n1. 请输入第 1 步...\n2. 观察非预期行为...\n\n### 期望行为\n- \n\n### 仿真偏离反馈结果\n- "
+    "### 缺陷复现步骤\n1.\n2.\n\n### 期望结果\n- \n\n### 实际结果\n- "
   );
   const [severity, setSeverity] = useState<DefectSeverity>(DefectSeverity.NORMAL);
   const [status] = useState<DefectStatus>(DefectStatus.NEW);

@@ -247,10 +247,10 @@ ${item.precondition || "无"}
 ### 缺陷复现步骤
 ${item.steps || "无复现步骤记录"}
 
-### 期望行为
+### 期望结果
 ${item.expectedResult || "无"}
 
-### 实际行为反馈
+### 实际结果
 ${item.actualResult || "无"}`;
 
       return {
@@ -358,11 +358,10 @@ ${item.actualResult || "无"}`;
                     <button
                       type="button"
                       onClick={() => setActiveTemplateTab("csv")}
-                      className={`px-3 py-2 text-[10.5px] font-extrabold border-b-2 transition-all cursor-pointer ${
-                        activeTemplateTab === "csv"
-                          ? "border-rose-600 text-rose-700"
-                          : "border-transparent text-slate-400 hover:text-slate-600"
-                      }`}
+                      className={`px-3 py-2 text-[10.5px] font-extrabold border-b-2 transition-all cursor-pointer ${activeTemplateTab === "csv"
+                        ? "border-rose-600 text-rose-700"
+                        : "border-transparent text-slate-400 hover:text-slate-600"
+                        }`}
                     >
                       <div className="flex items-center gap-1">
                         <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -372,11 +371,10 @@ ${item.actualResult || "无"}`;
                     <button
                       type="button"
                       onClick={() => setActiveTemplateTab("json")}
-                      className={`px-3 py-2 text-[10.5px] font-extrabold border-b-2 transition-all cursor-pointer ${
-                        activeTemplateTab === "json"
-                          ? "border-rose-600 text-rose-700"
-                          : "border-transparent text-slate-400 hover:text-slate-600"
-                      }`}
+                      className={`px-3 py-2 text-[10.5px] font-extrabold border-b-2 transition-all cursor-pointer ${activeTemplateTab === "json"
+                        ? "border-rose-600 text-rose-700"
+                        : "border-transparent text-slate-400 hover:text-slate-600"
+                        }`}
                     >
                       <div className="flex items-center gap-1">
                         <FileJson className="h-3.5 w-3.5" />
@@ -429,11 +427,10 @@ ${item.actualResult || "无"}`;
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all ${
-                  dragActive
-                    ? "border-rose-600 bg-rose-50/15"
-                    : "border-slate-200 hover:border-rose-400 bg-slate-50/20 hover:bg-slate-50/50"
-                }`}
+                className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all ${dragActive
+                  ? "border-rose-600 bg-rose-50/15"
+                  : "border-slate-200 hover:border-rose-400 bg-slate-50/20 hover:bg-slate-50/50"
+                  }`}
               >
                 <input
                   type="file"
@@ -505,12 +502,11 @@ ${item.actualResult || "无"}`;
                       <tr key={i} className="hover:bg-slate-50/50">
                         <td className="p-2.5 font-bold truncate max-w-[200px]">{defect.title}</td>
                         <td className="p-2.5">
-                          <span className={`px-1.5 py-0.2 rounded-md font-extrabold text-[9px] ${
-                            defect.severity === DefectSeverity.FATAL ? "bg-rose-100 text-rose-700" :
+                          <span className={`px-1.5 py-0.2 rounded-md font-extrabold text-[9px] ${defect.severity === DefectSeverity.FATAL ? "bg-rose-100 text-rose-700" :
                             defect.severity === DefectSeverity.SERIOUS ? "bg-orange-100 text-orange-700" :
-                            defect.severity === DefectSeverity.NORMAL ? "bg-amber-100 text-amber-700" :
-                            "bg-slate-100 text-slate-600"
-                          }`}>
+                              defect.severity === DefectSeverity.NORMAL ? "bg-amber-100 text-amber-700" :
+                                "bg-slate-100 text-slate-600"
+                            }`}>
                             {defect.severity}
                           </span>
                         </td>

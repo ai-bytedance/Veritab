@@ -32,7 +32,7 @@ export default function CreateRequirementModal({
   const [validationError, setValidationError] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState(
-    `### 业务背景概述\n请在此处输入具体的需求背景与业务逻辑目标...\n\n### 核心功能需求定义\n- [ ] 功能点 1\n- [ ] 功能点 2\n\n### 仿真验证拦截指标\n- 基线指标及覆盖场景说明： `
+    `### 业务背景概述\n请在此处输入具体的需求背景与业务逻辑目标...\n\n### 核心功能需求定义\n- [ ] 功能点 1\n- [ ] 功能点 2\n`
   );
   const [newPriority, setNewPriority] = useState<RequirementPriority>(
     RequirementPriority.MP2
@@ -181,7 +181,7 @@ export default function CreateRequirementModal({
               <CustomDropdown
                 options={[RequirementStatus.DRAFT]}
                 value={RequirementStatus.DRAFT}
-                onChange={() => {}}
+                onChange={() => { }}
                 disabled={true}
                 placeholder="请选择状态"
               />
