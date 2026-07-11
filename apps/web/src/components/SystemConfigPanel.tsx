@@ -37,6 +37,8 @@ import WebhookConfigSection from "./WebhookConfigSection";
 import UserManagementSection from "./UserManagementSection";
 import PromptTemplateSection from "./PromptTemplateSection";
 import SsoConfigSection from "./SsoConfigSection";
+import RemoteMemberManagement from "./RemoteMemberManagement";
+import { MemberApiScope } from "../features/members/api/types";
 
 // Official Logos using high-fidelity inline SVGs
 const GeminiLogo = ({ className = "h-4.5 w-4.5" }: { className?: string }) => (
@@ -143,6 +145,7 @@ interface SystemConfigPanelProps {
   onUpdateUserGroup: (g: UserGroup) => void;
   projects: Project[];
   currentUser: SystemUser;
+  memberApiScope?: MemberApiScope;
 }
 
 export default function SystemConfigPanel({
@@ -159,6 +162,7 @@ export default function SystemConfigPanel({
   onUpdateUserGroup,
   projects,
   currentUser,
+  memberApiScope,
 }: SystemConfigPanelProps) {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -883,7 +887,7 @@ export default function SystemConfigPanel({
 
       {settingsTab === "users" && (
         <div className="w-full animate-fade-in animate-in fade-in duration-200" id="system-config-users-tab">
-          <UserManagementSection
+          {memberApiScope ? <RemoteMemberManagement scope={memberApiScope} currentUser={currentUser} /> : <UserManagementSection
             users={users}
             onAddUser={onAddUser}
             onDeleteUser={onDeleteUser}
@@ -895,7 +899,7 @@ export default function SystemConfigPanel({
             onUpdateUserGroup={onUpdateUserGroup}
             isAdmin={isAdmin}
             currentUser={currentUser}
-          />
+          />}
         </div>
       )}
     </div>

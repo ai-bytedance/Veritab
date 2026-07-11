@@ -949,6 +949,7 @@ export default function App() {
                   onUpdateUserGroup={handleUpdateUserGroup}
                   projects={projects}
                   currentUser={currentUser}
+                  memberApiScope={requirementApiScope ? { organizationId: requirementApiScope.organizationId } : undefined}
                 />
               )}
             </div>
