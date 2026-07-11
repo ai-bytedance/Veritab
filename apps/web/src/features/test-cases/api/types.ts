@@ -6,6 +6,19 @@ export interface TestCaseApiScope {
 type ApiTestCaseGrade = "P0" | "P1" | "P2" | "P3";
 export type ApiTestResultStatus = "UNTESTED" | "PASS" | "FAIL" | "BLOCKED";
 
+export interface ApiTestCaseExecution {
+  id: string;
+  status: ApiTestResultStatus;
+  actualResult: string | null;
+  environment: string | null;
+  stepResults: Record<string, string> | null;
+  stepNotes: Record<string, string> | null;
+  definitionSnapshot: { title: string; precondition: string | null; steps: string | null; expectedResult: string | null; version: number } | null;
+  startedAt: string | null;
+  completedAt: string;
+  executedBy: { id: string; username: string; displayName: string };
+}
+
 export interface ApiTestCase {
   id: string;
   projectSpaceId: string;
@@ -31,6 +44,7 @@ export interface ApiTestCase {
   updatedAt: string;
   folder: { clientKey: string; name: string } | null;
   defectLinks: Array<{ defectId: string; defect: { id: string; displayNo: string; title: string } }>;
+  executions?: ApiTestCaseExecution[];
 }
 
 interface ApiTestCaseFolder {

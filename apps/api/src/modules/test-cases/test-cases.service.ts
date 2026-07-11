@@ -264,6 +264,13 @@ export class TestCasesService {
           environment: dto.environment,
           stepResults: dto.stepResults ? this.json(dto.stepResults) : undefined,
           stepNotes: dto.stepNotes ? this.json(dto.stepNotes) : undefined,
+          definitionSnapshot: this.json({
+            title: current.title,
+            precondition: current.precondition,
+            steps: current.steps,
+            expectedResult: current.expectedResult,
+            version: current.version,
+          }),
           startedAt: dto.startedAt ? new Date(dto.startedAt) : undefined,
         },
       });

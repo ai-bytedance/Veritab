@@ -751,6 +751,7 @@ model TestCaseExecution {
   environment  String?          @db.VarChar(500)
   stepResults  Json?            @map("step_results")
   stepNotes    Json?            @map("step_notes")
+  definitionSnapshot Json?      @map("definition_snapshot")
   startedAt    DateTime?        @map("started_at") @db.Timestamptz(3)
   completedAt  DateTime         @default(now()) @map("completed_at") @db.Timestamptz(3)
   createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)

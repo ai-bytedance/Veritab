@@ -35,6 +35,8 @@ import TestCaseHeaderView from "./TestCaseHeaderView";
 import { generateDefectId } from "../lib/idUtils";
 import { TestCaseApiScope } from "../features/test-cases/api/types";
 import { useResourceHistory } from "../features/history/useResourceHistory";
+import { useQuery } from "@tanstack/react-query";
+import { testCasesApi } from "../features/test-cases/api/testCasesApi";
 
 interface TestCaseDetailPanelProps {
   projectId: string;
@@ -94,6 +96,12 @@ export default function TestCaseDetailPanel({
   userGroups = []
 }: TestCaseDetailPanelProps) {
   const historyLogs = useResourceHistory("test-cases", apiScope, activeCase?.id).data;
+  const executionQuery = useQuery({
+    queryKey: ["test-case-executions", apiScope.organizationId, apiScope.projectSpaceId, activeCase?.id],
+    enabled: Boolean(activeCase?.id),
+    queryFn: () => testCasesApi.get(apiScope, activeCase!.id),
+  });
+  const executions = executionQuery.data?.executions || [];
   const checkActionPermission = (action: string) => {
     return checkPermission(propCurrentUser || null, userGroups || [], ProjectTab.TESTCASE, action);
   };
@@ -393,34 +401,15 @@ ${details.join("\n")}`;
       return;
     }
 
-    const { nextOverallStatus, runSnapshot } = pendingResults;
+    const { nextOverallStatus, nextActualResult } = pendingResults;
     const currentUser = executorUser;
-
-    const newLog = {
-      id: `exec-log-${Date.now()}`,
-      userId: currentUser.id,
-      userName: currentUser.nickname,
-      action: `归档回归报告 [结论: ${nextOverallStatus}]`,
-      oldValue: activeCase.status,
-      newValue: JSON.stringify(runSnapshot),
-      createdAt: new Date().toISOString()
-    };
-
-    const updatedLogs = [newLog, ...(activeCase.historyLogs || [])];
-
-    const initResults: Record<number, "pass" | "fail" | "blocked" | "untested"> = {};
-    const initNotes: Record<number, string> = {};
-    parsedSteps.forEach((_, idx) => {
-      initResults[idx] = "untested";
-    });
 
     onUpdateTestCase({
       ...activeCase,
-      status: TestCaseStatus.UNTESTED, // 重置为草稿/未测试状态，开启新一轮回归周期
-      actualResult: "", // 清空实际执行结果，重新开始填写
-      stepResults: initResults,
-      stepNotes: initNotes,
-      historyLogs: updatedLogs,
+      status: nextOverallStatus,
+      actualResult: nextActualResult,
+      stepResults,
+      stepNotes,
       updatedAt: new Date().toISOString()
     });
 
@@ -444,52 +433,16 @@ ${details.join("\n")}`;
     setShowNotifySubmitModal(false);
     setPendingResults(null);
 
-    setStepResults(initResults);
-    setStepNotes(initNotes);
   };
 
   const handleStepStatusChange = (index: number, status: "pass" | "fail" | "blocked") => {
     const nextResults = { ...stepResults, [index]: status };
     setStepResults(nextResults);
-
-    let nextOverallStatus = TestCaseStatus.UNTESTED;
-    const stepStatuses = parsedSteps.map((_, i) => nextResults[i] || "untested");
-
-    if (stepStatuses.some(v => v === "fail")) {
-      nextOverallStatus = TestCaseStatus.FAIL;
-    } else if (stepStatuses.some(v => v === "blocked")) {
-      nextOverallStatus = TestCaseStatus.BLOCKED;
-    } else if (stepStatuses.every(v => v === "pass")) {
-      nextOverallStatus = TestCaseStatus.PASS;
-    } else {
-      nextOverallStatus = TestCaseStatus.UNTESTED;
-    }
-
-    const nextActualResult = syncActualResult(nextResults, stepNotes);
-
-    onUpdateTestCase({
-      ...activeCase,
-      status: nextOverallStatus,
-      actualResult: nextActualResult,
-      stepResults: nextResults,
-      stepNotes: stepNotes,
-      updatedAt: new Date().toISOString(),
-    });
   };
 
   const updateStepNote = (index: number, note: string) => {
     const nextNotes = { ...stepNotes, [index]: note };
     setStepNotes(nextNotes);
-
-    const nextActualResult = syncActualResult(stepResults, nextNotes);
-
-    onUpdateTestCase({
-      ...activeCase,
-      actualResult: nextActualResult,
-      stepResults: stepResults,
-      stepNotes: nextNotes,
-      updatedAt: new Date().toISOString(),
-    });
   };
 
   const handleAIGenerateDefect = async () => {
@@ -719,7 +672,7 @@ ${details.join("\n")}`;
 
           {innerTab === "history" && (
             <div className="animate-fade-in text-left space-y-4">
-              <RegressionHistoryTab activeCase={activeCase} />
+              <RegressionHistoryTab activeCase={activeCase} executions={executions} />
 
               {/* Unified Change History Log Tab Panel to match Requirement/Defect pages */}
               <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 mt-6 select-none font-sans">

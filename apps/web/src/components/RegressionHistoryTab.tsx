@@ -11,26 +11,34 @@ import {
   Layers,
   HelpCircle
 } from "lucide-react";
-import { TestCase, TestCaseStatus } from "../types";
+import { TestCase } from "../types";
+import { ApiTestCaseExecution } from "../features/test-cases/api/types";
 
 interface RegressionHistoryTabProps {
   activeCase: TestCase;
+  executions: ApiTestCaseExecution[];
 }
 
-export default function RegressionHistoryTab({ activeCase }: RegressionHistoryTabProps) {
+export default function RegressionHistoryTab({ activeCase, executions }: RegressionHistoryTabProps) {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [isSectionExpanded, setIsSectionExpanded] = useState<boolean>(true);
 
-  const runs = (activeCase.historyLogs || [])
-    .filter((log) => log.action?.includes("归档回归报告") || log.action?.includes("归盘回归") || log.newValue?.includes('"results"'))
-    .map((log) => {
-      try {
-        const snap = JSON.parse(log.newValue || "{}");
-        return { log, snap };
-      } catch {
-        return { log, snap: null };
-      }
-    });
+  const runs = executions.map((execution) => ({
+    log: {
+      id: execution.id,
+      createdAt: execution.completedAt,
+      userName: execution.executedBy.displayName || execution.executedBy.username,
+      oldValue: execution.status,
+    },
+    snap: {
+      overallStatus: execution.status as string,
+      steps: (execution.definitionSnapshot?.steps ?? activeCase.steps)?.split("\n").map((value) => value.trim()).filter(Boolean) || [],
+      expected: (execution.definitionSnapshot?.expectedResult ?? activeCase.expectedResult)?.split("\n").map((value) => value.trim()).filter(Boolean) || [],
+      results: execution.stepResults || {},
+      notes: execution.stepNotes || {},
+      description: execution.actualResult,
+    },
+  }));
 
   if (runs.length === 0) {
     return (
