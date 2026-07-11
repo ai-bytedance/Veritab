@@ -22,4 +22,13 @@ export const envValidationSchema = Joi.object({
   AI_MODEL: Joi.string().max(160).optional(),
   AI_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(30000),
   WEBHOOK_ENCRYPTION_KEY: Joi.string().base64().optional(),
-});
+  S3_ENDPOINT: Joi.string().uri({ scheme: ["https", "http"] }).optional(),
+  S3_REGION: Joi.string().default("us-east-1"),
+  S3_BUCKET: Joi.string().max(255).optional(),
+  S3_ACCESS_KEY_ID: Joi.string().optional(),
+  S3_SECRET_ACCESS_KEY: Joi.string().optional(),
+  S3_FORCE_PATH_STYLE: Joi.boolean().default(false),
+  S3_UPLOAD_URL_TTL: Joi.number().integer().min(60).max(3600).default(600),
+  S3_DOWNLOAD_URL_TTL: Joi.number().integer().min(30).max(3600).default(300),
+  FILE_MAX_SIZE_BYTES: Joi.number().integer().min(1).max(104857600).default(10485760),
+}).and("S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY");

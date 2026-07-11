@@ -34,6 +34,8 @@ import FeishuCollabWidget from "./FeishuCollabWidget";
 import MarkdownWorkspace, { simpleMarkdownParse } from "./MarkdownWorkspace";
 import { robustJsonParse, mapAITestCase } from "../lib/aiUtils";
 import { formatReqId, formatDefectId, generateCaseId } from "../lib/idUtils";
+import ResourceAttachments from "./ResourceAttachments";
+import { RequirementApiScope } from "../features/requirements/api/types";
 
 export interface RequirementDetailPanelProps {
   projectId: string;
@@ -54,6 +56,7 @@ export interface RequirementDetailPanelProps {
   initialEditMode?: boolean;
   currentUser?: any;
   userGroups?: UserGroup[];
+  apiScope: RequirementApiScope;
 }
 
 export default function RequirementDetailPanel({
@@ -74,7 +77,8 @@ export default function RequirementDetailPanel({
   onPromptMissing,
   initialEditMode = false,
   currentUser,
-  userGroups = []
+  userGroups = [],
+  apiScope,
 }: RequirementDetailPanelProps) {
   const checkActionPermission = (action: string) => {
     return checkPermission(currentUser || null, userGroups || [], ProjectTab.REQUIREMENT, action);
@@ -759,38 +763,7 @@ ${activeIssue.content}
         )}
       </div>
 
-      {/* Compact resources */}
-      {activeIssue.attachmentUrls && activeIssue.attachmentUrls.length > 0 && (
-        <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center gap-3">
-          <span className="text-[10px] font-semibold text-slate-500 whitespace-nowrap">附件与素材:</span>
-          <div className="flex flex-wrap gap-2 items-center">
-            {activeIssue.attachmentUrls?.map((at, idx) => {
-              const u = decodeURIComponent(at.split('/').pop() || '');
-              const isPdf = u.toLowerCase().endsWith('.pdf');
-              const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(u);
-
-              return (
-                <div key={idx} className="group relative">
-                  <a
-                    href={at}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 rounded-lg text-xs font-medium text-slate-700 transition-colors"
-                  >
-                    {isImage ? <ImageIcon className="h-3.5 w-3.5 text-indigo-500" /> : isPdf ? <FileIcon className="h-3.5 w-3.5 text-rose-500" /> : <Paperclip className="h-3.5 w-3.5 text-slate-400" />}
-                    <span className="truncate max-w-[120px]">{u || "附件"}</span>
-                  </a>
-                  {isImage && (
-                    <div className="absolute left-0 bottom-full mb-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                       <img src={at} alt="preview" className="w-48 h-auto object-cover rounded-xl border border-slate-200 shadow-xl bg-white" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <ResourceAttachments scope={apiScope} resourceType="REQUIREMENT" resourceId={activeIssue.id} />
 
       {/* Simplified Traceability, Feishu, and Audit History (Visible in preview/reading mode only) */}
       {!isEditingContent && (

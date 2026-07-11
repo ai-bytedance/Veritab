@@ -1121,6 +1121,7 @@ ${activeIssue.content}
                 onDeleteTestCase={onDeleteTestCase}
                 onInvokeAI={onInvokeAI}
                 onAddTestCaseBatch={onAddTestCaseBatch}
+                apiScope={apiScope}
                 onNavigateToTab={onNavigateToTab}
                 onFocusTestCase={onFocusTestCase}
                 onTriggerWebhook={onTriggerWebhook}

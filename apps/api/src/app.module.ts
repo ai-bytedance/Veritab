@@ -18,6 +18,7 @@ import { TestCasesModule } from "./modules/test-cases/test-cases.module";
 import { UsersModule } from "./modules/users/users.module";
 import { AiModule } from "./modules/ai/ai.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { FilesModule } from "./modules/files/files.module";
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
     HealthModule,
     AiModule,
     NotificationsModule,
+    FilesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

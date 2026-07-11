@@ -138,6 +138,12 @@ enum WebhookProvider {
   CUSTOM
 }
 
+enum FileObjectStatus {
+  PENDING
+  READY
+  DELETED
+}
+
 enum GitProvider {
   GITHUB
   GITLAB
@@ -189,6 +195,7 @@ model User {
   testCaseExecutions   TestCaseExecution[]
   updatedTestCatalogs  TestCaseCatalog[]
   sentInvitations      OrganizationInvitation[] @relation("InvitationSender")
+  uploadedFiles        FileObject[]
 
   @@map("users")
 }
@@ -208,6 +215,7 @@ model Organization {
   auditLogs         AuditLog[]
   invitations       OrganizationInvitation[]
   settings          OrganizationSettings?
+  fileObjects       FileObject[]
 
   @@map("organizations")
 }
@@ -269,10 +277,37 @@ model ProjectSpace {
   webhooks        WebhookConfig[]
   auditLogs       AuditLog[]
   counter         ProjectCounter?
+  fileObjects     FileObject[]
 
   @@unique([organizationId, key])
   @@index([organizationId, updatedAt(sort: Desc)])
   @@map("project_spaces")
+}
+
+model FileObject {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  projectSpaceId String           @map("project_space_id") @db.Uuid
+  uploaderId     String           @map("uploader_id") @db.Uuid
+  objectKey      String           @unique @map("object_key") @db.VarChar(500)
+  originalName   String           @map("original_name") @db.VarChar(255)
+  contentType    String           @map("content_type") @db.VarChar(160)
+  expectedSize   BigInt           @map("expected_size")
+  actualSize     BigInt?          @map("actual_size")
+  checksumSha256 String?          @map("checksum_sha256") @db.VarChar(64)
+  status         FileObjectStatus @default(PENDING)
+  resourceType   String?          @map("resource_type") @db.VarChar(80)
+  resourceId     String?          @map("resource_id") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  finalizedAt    DateTime?        @map("finalized_at") @db.Timestamptz(3)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamptz(3)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectSpace   ProjectSpace     @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  uploader       User             @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([projectSpaceId, resourceType, resourceId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("file_objects")
 }
 
 model ProjectMember {
