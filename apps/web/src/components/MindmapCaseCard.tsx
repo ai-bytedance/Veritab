@@ -407,7 +407,7 @@ export default function MindmapCaseCard({
       {/* Step details next to case - dynamically optimized depending on isCompact flag */}
       {isExpanded && (
         isCompact ? (
-          /* --- Horizontal branches of step nodes (perfectly matching the user's mockup image!) --- */
+          /* Horizontal branches of step nodes. */
           <>
             {/* Horizontal connecting line from case node */}
             <div className="flex items-center justify-center shrink-0 w-6 select-none mx-0.5">
@@ -442,7 +442,7 @@ export default function MindmapCaseCard({
 
                     return (
                       <div key={idx} className="relative flex flex-row items-center gap-1.5 animate-fade-in">
-                        {/* 1. Step Description Node (green-yellow styled tag matching the mockup) */}
+                        {/* Step description node. */}
                         <div className={`rounded-md border-2 min-h-[36px] h-auto py-1.5 px-3 flex items-center gap-2 w-[320px] shrink-0 transition-all ${
                           sRes === "pass" ? "bg-[#f4fbf7] border-emerald-500 text-emerald-800" :
                           sRes === "fail" ? "bg-[#fff5f5] border-rose-500 animate-pulse text-rose-800" :
@@ -491,7 +491,7 @@ export default function MindmapCaseCard({
                         {/* Connector to Expected Result */}
                         <div className="w-4 h-[1.5px] bg-slate-300 shrink-0" />
 
-                        {/* 2. Expected Result Node (pink styled tag matching the mockup) */}
+                        {/* Expected result node. */}
                         <div className={`rounded-md border-2 min-h-[36px] h-auto py-1.5 px-3 flex items-center gap-2 w-[260px] shrink-0 transition-all ${
                           sRes === "pass" ? "bg-[#f4fbf7] border-emerald-500 text-emerald-800" :
                           sRes === "fail" ? "bg-[#fff5f5] border-rose-500 text-rose-800" :
@@ -529,7 +529,7 @@ export default function MindmapCaseCard({
                         {/* Connector to status/action pills */}
                         <div className="w-3.5 h-[1.5px] bg-slate-300 shrink-0" />
 
-                        {/* Status select buttons (Mini inline checkoff matching mockup layout exactly) */}
+                        {/* Compact status controls. */}
                         <div className="flex bg-white border-2 border-indigo-200 hover:border-indigo-300 rounded-md p-0.5 shrink-0 select-none items-center h-[36px] gap-1 shadow-3xs">
                           <button
                             onClick={() => onStepStatusChange(tc.id, idx, "pass")}

@@ -21,16 +21,13 @@ import {
   TestCaseStatus
 } from "./types";
 import { DEFAULT_SYSTEM_CONFIG } from "./config/defaults";
-import { getStoredData, setStoredData } from "./lib/localStorage";
 import Sidebar from "./components/Sidebar";
-import FeishuNotifyModal from "./components/FeishuNotifyModal";
 import PromptMissingModal from "./components/PromptMissingModal";
-import AutoConfirmNotifyModal from "./components/AutoConfirmNotifyModal";
 import LoginModal from "./components/LoginModal";
 import PersonalCenterModal from "./components/PersonalCenterModal";
 import { Sparkles, HelpCircle, BookmarkCheck, AlertOctagon, FolderGit2, FileCheck2, BarChart4, Settings, ShieldCheck, GitCommit, GitBranch, Globe } from "lucide-react";
 import { generateCaseId } from "./lib/idUtils";
-import { apiRequest, authApi, isRemoteApiMode } from "./api/httpClient";
+import { apiRequest, authApi } from "./api/httpClient";
 import { RequirementApiScope } from "./features/requirements/api/types";
 import { useGitIntegrations } from "./features/git-integrations/api/useGitIntegrations";
 
@@ -43,9 +40,8 @@ const MetricsDashboard = lazy(() => import("./components/MetricsDashboard"));
 const SystemConfigPanel = lazy(() => import("./components/SystemConfigPanel"));
 
 export default function App() {
-  const remoteMode = isRemoteApiMode();
   const configuredApiScope: RequirementApiScope | undefined =
-    isRemoteApiMode() && import.meta.env.VITE_ORGANIZATION_ID && import.meta.env.VITE_PROJECT_SPACE_ID
+    import.meta.env.VITE_ORGANIZATION_ID && import.meta.env.VITE_PROJECT_SPACE_ID
       ? {
           organizationId: import.meta.env.VITE_ORGANIZATION_ID,
           projectSpaceId: import.meta.env.VITE_PROJECT_SPACE_ID,
@@ -53,7 +49,7 @@ export default function App() {
       : undefined;
   const [requirementApiScope, setRequirementApiScope] = useState<RequirementApiScope | undefined>(configuredApiScope);
   const gitIntegration = useGitIntegrations(requirementApiScope);
-  // Main loaded states from durable local persistence sandbox
+  // Server-backed view state. PostgreSQL remains the sole business source of truth.
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
@@ -62,36 +58,28 @@ export default function App() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
 
-  const [currentUser, setCurrentUser] = useState<SystemUser>(() => {
-    const anonymous: SystemUser = { id: "", username: "", nickname: "未登录", email: "", group: "server-managed", status: "active", role: "member" };
-    return remoteMode ? anonymous : getStoredData<SystemUser>("veritab_current_user", anonymous);
-  });
+  const [currentUser, setCurrentUser] = useState<SystemUser>({ id: "", username: "", nickname: "未登录", email: "", group: "server-managed", status: "active", role: "member" });
 
   const handleCurrentUserChange = (newUser: SystemUser) => {
     setCurrentUser(newUser);
-    if (!remoteMode) setStoredData("veritab_current_user", newUser);
     setIsLoggedOut(false);
-    if (!remoteMode) setStoredData("veritab_is_logged_out", false);
     setIsLoginModalOpen(false);
     setUsers(prev => {
       const exists = prev.some((user) => user.id === newUser.id);
       const updated = exists
         ? prev.map(u => u.id === newUser.id ? { ...u, nickname: newUser.nickname, email: newUser.email, feishuUserId: newUser.feishuUserId, wechatUserId: newUser.wechatUserId, dingtalkUserId: newUser.dingtalkUserId, role: newUser.role } : u)
         : [newUser, ...prev];
-      if (!remoteMode) setStoredData("veritab_users", updated);
       return updated;
     });
   };
 
   const handleLogout = () => {
-    if (remoteMode) void authApi.logout();
+    void authApi.logout();
     setIsLoggedOut(true);
-    if (!remoteMode) setStoredData("veritab_is_logged_out", true);
     setIsLoginModalOpen(true);
   };
 
   useEffect(() => {
-    if (!remoteMode) return;
     let cancelled = false;
     void authApi
       .restoreSession()
@@ -117,73 +105,20 @@ export default function App() {
     };
   }, []);
 
-  const [feishuNotifyResult, setFeishuNotifyResult] = useState<any | null>(null);
-  const [feishuNotifyPayload, setFeishuNotifyPayload] = useState<any | null>(null);
-  const [isFeishuModalOpen, setIsFeishuModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isPersonalCenterOpen, setIsPersonalCenterOpen] = useState(false);
-  const [isLoggedOut, setIsLoggedOut] = useState(() => remoteMode || getStoredData<boolean>("veritab_is_logged_out", false));
+  const [isLoggedOut, setIsLoggedOut] = useState(true);
 
   // Advanced Confirmation & Prompt Strategy config states
   const [isPromptMissingOpen, setIsPromptMissingOpen] = useState(false);
-  const [pendingWebhook, setPendingWebhook] = useState<{
-    provider: string;
-    payload: any;
-    resolve: (res: any) => void;
-  } | null>(null);
-  const [bypassNextConfirm, setBypassNextConfirm] = useState(false);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<ProjectTab>(ProjectTab.OVERVIEW);
   const [focusedTestCaseId, setFocusedTestCaseId] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Load initial data on mount
   useEffect(() => {
-    if (remoteMode) {
-      // Remove legacy business fixtures once production API mode is enabled.
-      ["veritab_projects", "veritab_users", "veritab_user_groups", "veritab_issues", "veritab_test_cases", "veritab_folders", "veritab_system_config", "veritab_current_user", "veritab_is_logged_out"].forEach((key) => localStorage.removeItem(key));
-      setProjects([]);
-      setUsers([]);
-      setUserGroups([]);
-      setIssues([]);
-      setTestCases([]);
-      setFolders([]);
-      setSystemConfig(DEFAULT_SYSTEM_CONFIG);
-      return;
-    }
-    const loadedProjects = getStoredData<Project[]>("veritab_projects", []);
-    const loadedUsers = getStoredData<SystemUser[]>("veritab_users", []);
-    const loadedGroups = getStoredData<UserGroup[]>("veritab_user_groups", []);
-    const loadedIssues = getStoredData<Issue[]>("veritab_issues", []);
-    const loadedTestCases = getStoredData<TestCase[]>("veritab_test_cases", []);
-    const loadedFolders = getStoredData<Folder[]>("veritab_folders", []);
-    const loadedConfig = getStoredData<SystemConfig>("veritab_system_config", DEFAULT_SYSTEM_CONFIG);
-
-    // Safeguard: Ensure visibleMenus is present in some form in the loaded system configuration
-    if (!loadedConfig.visibleMenus) {
-      loadedConfig.visibleMenus = ["overview", "requirement", "defect", "testcase", "code_changes", "metrics", "config"];
-      setStoredData("veritab_system_config", loadedConfig);
-    } else if (!loadedConfig.visibleMenus.includes("code_changes")) {
-      loadedConfig.visibleMenus.push("code_changes");
-      setStoredData("veritab_system_config", loadedConfig);
-    }
-
-    setProjects(loadedProjects);
-    setUsers(loadedUsers);
-    setUserGroups(loadedGroups);
-    setIssues(loadedIssues);
-    setTestCases(loadedTestCases);
-    setFolders(loadedFolders);
-    setSystemConfig(loadedConfig);
-
-    if (loadedProjects.length > 0) {
-      setSelectedProjectId(loadedProjects[0].id);
-    }
-  }, [remoteMode]);
-
-  useEffect(() => {
-    if (!remoteMode || isLoggedOut || requirementApiScope) return;
+    if (isLoggedOut || requirementApiScope) return;
     let cancelled = false;
     void apiRequest<Array<{ id: string }>>("/organizations")
       .then(async (organizations) => {
@@ -199,10 +134,10 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [remoteMode, isLoggedOut, requirementApiScope]);
+  }, [isLoggedOut, requirementApiScope]);
 
   useEffect(() => {
-    if (!remoteMode || isLoggedOut || !requirementApiScope) return;
+    if (isLoggedOut || !requirementApiScope) return;
     let cancelled = false;
     void apiRequest<{ id: string; name: string; description: string | null; createdAt: string }>(
       `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
@@ -227,7 +162,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [remoteMode, isLoggedOut, requirementApiScope?.organizationId, requirementApiScope?.projectSpaceId]);
+  }, [isLoggedOut, requirementApiScope?.organizationId, requirementApiScope?.projectSpaceId]);
 
   // Redirect to first permitted tab if activeTab is not permitted for the current non-admin user
   useEffect(() => {
@@ -247,40 +182,25 @@ export default function App() {
   // Sync back on state mutations
   const updateProjects = (updated: Project[]) => {
     setProjects(updated);
-    if (!remoteMode) setStoredData("veritab_projects", updated);
-  };
-
-  const updateUsers = (updated: SystemUser[]) => {
-    setUsers(updated);
-    if (!remoteMode) setStoredData("veritab_users", updated);
-  };
-
-  const updateUserGroups = (updated: UserGroup[]) => {
-    setUserGroups(updated);
-    if (!remoteMode) setStoredData("veritab_user_groups", updated);
   };
 
   const updateIssues = (updated: Issue[]) => {
     setIssues(updated);
-    if (!remoteMode) setStoredData("veritab_issues", updated);
   };
 
   const updateTestCases = (updated: TestCase[] | ((prev: TestCase[]) => TestCase[])) => {
     setTestCases((prev) => {
       const next = typeof updated === "function" ? updated(prev) : updated;
-      if (!remoteMode) setStoredData("veritab_test_cases", next);
       return next;
     });
   };
 
   const updateFolders = (updated: Folder[]) => {
     setFolders(updated);
-    if (!remoteMode) setStoredData("veritab_folders", updated);
   };
 
   const updateSystemConfig = (updated: SystemConfig) => {
     setSystemConfig(updated);
-    if (!remoteMode) setStoredData("veritab_system_config", updated);
   };
 
   // Triggering the generic express back API for multi-model invokes
@@ -320,130 +240,19 @@ export default function App() {
     }
   };
 
-  // Helper to execute the actual fetch / trigger webhook logic
-  const executeRealWebhook = async (provider: string, payload: any) => {
-    if (provider !== "feishu" && provider !== "dingtalk" && provider !== "wechat") {
-      return { success: true, message: "本地通知模拟发送成功。" };
-    }
-    try {
-      let config = systemConfig.feishuConfig;
-      if (provider === "dingtalk") config = systemConfig.dingtalkConfig;
-      if (provider === "wechat") config = systemConfig.wechatConfig;
-
-      const res = await fetch("/api/feishu/notify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          webhookUrl: config.webhookUrl,
-          secret: config.secret,
-          payload,
-        }),
-      });
-
-      let resultData;
-      if (res.ok) {
-        resultData = await res.json();
-      } else {
-        resultData = { success: false, message: "后端 Webhook 转发路由请求异常。" };
-      }
-
-      // If it's a "feishu" broadcast, save results quietly, do not show popups
-      if (provider === "feishu") {
-        setFeishuNotifyResult({
-          success: resultData.success,
-          sentToUrl: config.webhookUrl,
-          realSent: resultData.realSent,
-          realError: resultData.realError,
-          timestamp: resultData.timestamp || new Date().toISOString(),
-          message: resultData.message,
-        });
-        setFeishuNotifyPayload(payload);
-        // Popup removed in compliance with user request: '需求 、用例、缺陷 智能即时协同诊断中心弹窗去掉吧'
-      }
-      return resultData;
-    } catch (e: any) {
-      console.error("Failed to post mock notify webhook", e);
-      const errRes = { success: false, message: e.message || "未知推送故障" };
-      if (provider === "feishu") {
-        setFeishuNotifyResult({
-          success: false,
-          sentToUrl: systemConfig.feishuConfig.webhookUrl,
-          realSent: false,
-          realError: e.message || "未知推送故障",
-          timestamp: new Date().toISOString(),
-          message: "推送链路网关错误",
-        });
-        setFeishuNotifyPayload(payload);
-        // Popup removed in compliance with user request: '需求 、用例、缺陷 智能即时协同诊断中心弹窗去掉吧'
-      }
-      return errRes;
-    }
+  /*
+   * Notification delivery is intentionally unavailable until the server-side
+   * outbox worker and encrypted channel configuration are implemented.
+   * Never report a simulated delivery as successful.
+   */
+  const handleTriggerWebhook = async () => {
+    return {
+      success: false,
+      skipped: true,
+      message: "通知服务尚未启用。",
+    };
   };
 
-  // Webhook pushes simulation (Feishu integration sandbox check)
-  const handleTriggerWebhook = async (provider: string, payload: any) => {
-    if (provider !== "feishu" && provider !== "dingtalk" && provider !== "wechat") {
-      console.log(`[Local Simulation] ${provider} channel successfully skipped external webhook and handled locally.`);
-      return { success: true, message: "本地通知模拟发送成功。" };
-    }
-
-    let config = systemConfig.feishuConfig;
-    if (provider === "dingtalk") config = systemConfig.dingtalkConfig;
-    if (provider === "wechat") config = systemConfig.wechatConfig;
-
-    // 1. Check if the channel itself is enabled
-    if (!config || !config.enabled) {
-      console.log(`[Webhook Intercept] Channel ${provider} is disabled.`);
-      return { success: true, skipped: true, message: "该推送通道未启用。" };
-    }
-
-    // 2. Fine-grained event check
-    if (payload?.isAutoTrigger) {
-      const type = payload.type || "";
-      if (type === "RequirementCreated" && config.notifyOnReqCreate === false) {
-        console.log(`[Webhook Intercept] User disabled RequirementCreated for ${provider}`);
-        return { success: true, skipped: true, message: "已通过订阅设置自动拦截需求创建通知" };
-      }
-      if (type === "RequirementStatusChanged" && config.notifyOnReqChange === false) {
-        console.log(`[Webhook Intercept] User disabled RequirementStatusChanged for ${provider}`);
-        return { success: true, skipped: true, message: "已通过订阅设置自动拦截需求状态/属性变更通知" };
-      }
-      if (type === "TestCaseCreated" && config.notifyOnCaseCreate === false) {
-        console.log(`[Webhook Intercept] User disabled TestCaseCreated for ${provider}`);
-        return { success: true, skipped: true, message: "已通过订阅设置自动拦截用例生成/创建通知" };
-      }
-      if (type === "TestCaseStatusChanged" && config.notifyOnCaseChange === false) {
-        console.log(`[Webhook Intercept] User disabled TestCaseStatusChanged for ${provider}`);
-        return { success: true, skipped: true, message: "已通过订阅设置自动拦截用例状态变动通知" };
-      }
-      if (type === "DefectCreated" && config.notifyOnDefectCreate === false) {
-        console.log(`[Webhook Intercept] User disabled DefectCreated for ${provider}`);
-        return { success: true, skipped: true, message: "已通过订阅设置自动拦截新缺陷提报通知" };
-      }
-      if (type === "DefectStatusChanged" && config.notifyOnDefectChange === false) {
-        console.log(`[Webhook Intercept] User disabled DefectStatusChanged for ${provider}`);
-        return { success: true, skipped: true, message: "已通过订阅设置自动拦截缺陷状态/属性变动通知" };
-      }
-      if (type === "CommentMention" && config.notifyOnCommentMention === false) {
-        console.log(`[Webhook Intercept] User disabled CommentMention for ${provider}`);
-        return { success: true, skipped: true, message: "已通过订阅设置自动拦截评论 @ 提及通知" };
-      }
-    }
-
-    const isConfirmEnabled = systemConfig.enableAutoNotifyConfirm !== false;
-    if (payload?.isAutoTrigger && isConfirmEnabled && !bypassNextConfirm) {
-      return new Promise((resolve) => {
-        setPendingWebhook({
-          provider,
-          payload,
-          resolve,
-        });
-      });
-    }
-    return executeRealWebhook(provider, payload);
-  };
 
   const handleLoadDefaultPrompt = () => {
     const defaultTemplate = `你是一位顶尖的敏捷软件质控专家与资深测试架构师。针对以下提供的业务需求说明，进行高覆盖度的业务流演进与异常边界探索，并派生出一组标准回归用例。
@@ -473,146 +282,16 @@ export default function App() {
     setIsPromptMissingOpen(false);
     alert("「默认高可靠敏捷质控策略」生成提示规范，已写入全局模型配置，即时生效！");
   };
-
-  const handleConfirmAutoWebhook = (bypassFuture: boolean) => {
-    if (!pendingWebhook) return;
-    const { provider, payload, resolve } = pendingWebhook;
-
-    if (bypassFuture) {
-      setBypassNextConfirm(true);
-    }
-
-    setPendingWebhook(null);
-    executeRealWebhook(provider, payload).then((res) => {
-      resolve(res);
-    });
-  };
-
-  const handleCancelAutoWebhook = () => {
-    if (!pendingWebhook) return;
-    const { resolve } = pendingWebhook;
-    setPendingWebhook(null);
-    resolve({ success: true, skipped: true, message: "用户已取消自动消息卡片分发。" });
-  };
-
-  // One-click group pull simulator (Feishu applink & API integration)
-  const handleCreateFeishuGroup = async (payload: {
-    title: string;
-    itemType: "Requirement" | "Defect" | "TestCase";
-    itemId: string;
-    itemTitle: string;
-    members: any[];
-  }) => {
-    try {
-      const config = systemConfig.feishuConfig;
-      const res = await fetch("/api/feishu/create-group", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          webhookUrl: config.webhookUrl,
-          title: payload.title,
-          itemType: payload.itemType,
-          itemId: payload.itemId,
-          itemTitle: payload.itemTitle,
-          members: payload.members,
-        }),
-      });
-
-      let resultData;
-      if (res.ok) {
-        resultData = await res.json();
-      } else {
-        resultData = { success: false, message: "后端拉群接口请求异常。" };
-      }
-
-      setFeishuNotifyResult({
-        success: resultData.success,
-        sentToUrl: config.webhookUrl,
-        realSent: resultData.realSent,
-        realError: resultData.realError,
-        timestamp: resultData.timestamp || new Date().toISOString(),
-        message: resultData.message,
-        isGroupCreate: true,
-        groupName: resultData.groupName,
-        joinLink: resultData.joinLink,
-        groupId: resultData.groupId,
-        membersPulled: payload.members,
-      });
-
-      // Simulates notification target body
-      setFeishuNotifyPayload({
-        title: resultData.groupName,
-        type: payload.itemType,
-        content: `专属研发协同保障群已创建上线！首批协作群成员：${payload.members.map((m: any) => "@" + m.nickname).join(", ")}`,
-        link: resultData.joinLink,
-        mentionsWithId: payload.members,
-      });
-
-      setIsFeishuModalOpen(true);
-      return resultData;
-    } catch (e: any) {
-      console.error("Failed to create Feishu group", e);
-      return { success: false, message: e.message || "未知拉群异常" };
-    }
-  };
+  const handleCreateFeishuGroup = async () => ({
+    success: false,
+    message: "飞书群组集成尚未启用。",
+  });
 
   // Helper actions
-  const handleAddNewProject = () => {
-    const defaultProj: Project = {
-      id: `proj-${Date.now()}`,
-      name: "全新 AI 智能化微引擎项目 " + (projects.length + 1),
-      description: "敏捷迭代推进中。利用 Veritab 质量双向追溯系统深度评估并全自动拦截仿真缺陷故障。",
-      repoType: "none",
-      repoUrl: "",
-      createdAt: new Date().toISOString(),
-      serviceProvider: "阿里云",
-    };
-
-    const nextList = [...projects, defaultProj];
-    updateProjects(nextList);
-    setSelectedProjectId(defaultProj.id);
-    setActiveTab(ProjectTab.OVERVIEW);
-  };
 
   const handleUpdateActiveProject = (updated: Project) => {
     const list = projects.map((p) => (p.id === updated.id ? updated : p));
     updateProjects(list);
-  };
-
-  // Users manipulations
-  const handleAddUser = (created: SystemUser) => {
-    updateUsers([...users, created]);
-  };
-
-  const handleDeleteUser = (id: string) => {
-    updateUsers(users.filter(u => u.id !== id));
-  };
-
-  const handleToggleUserStatus = (id: string) => {
-    updateUsers(
-      users.map(u => u.id === id ? { ...u, status: u.status === "active" ? "disabled" : "active" } : u)
-    );
-  };
-
-  const handleUpdateUser = (updated: SystemUser) => {
-    updateUsers(users.map(u => u.id === updated.id ? updated : u));
-  };
-
-  // Groups manipulations
-  const handleAddUserGroup = (created: UserGroup) => {
-    updateUserGroups([...userGroups, created]);
-  };
-
-  const handleDeleteUserGroup = (id: string) => {
-    // Prevent dangling users by assigning them to a fall-back group if required
-    updateUserGroups(userGroups.filter(g => g.id !== id));
-    updateUsers(users.map(u => u.group === id ? { ...u, group: "grp-dev" } : u));
-  };
-
-  const handleUpdateUserGroup = (updated: UserGroup) => {
-    updateUserGroups(userGroups.map(g => g.id === updated.id ? updated : g));
   };
 
   // Issues manipulations
@@ -702,7 +381,6 @@ export default function App() {
         projects={projects}
         selectedProjectId={selectedProjectId}
         onProjectChange={setSelectedProjectId}
-        onNewProject={handleAddNewProject}
         systemModel={systemConfig.modelConfigs[systemConfig.activeModelProvider]?.name || systemConfig.activeModelProvider}
         currentUser={currentUser}
         onCurrentUserChange={handleCurrentUserChange}
@@ -807,7 +485,6 @@ export default function App() {
                   onUpdateProject={handleUpdateActiveProject}
                   issues={issues}
                   testCases={testCases}
-                  users={users}
                   onInvokeAI={handleInvokeAI}
                   onAddTestCase={(tcData) => {
                     const newId = generateCaseId();
@@ -938,18 +615,9 @@ export default function App() {
                 <SystemConfigPanel
                   systemConfig={systemConfig}
                   onUpdateConfig={updateSystemConfig}
-                  users={users}
-                  onAddUser={handleAddUser}
-                  onDeleteUser={handleDeleteUser}
-                  onToggleUserStatus={handleToggleUserStatus}
-                  onUpdateUser={handleUpdateUser}
-                  userGroups={userGroups}
-                  onAddUserGroup={handleAddUserGroup}
-                  onDeleteUserGroup={handleDeleteUserGroup}
-                  onUpdateUserGroup={handleUpdateUserGroup}
                   projects={projects}
                   currentUser={currentUser}
-                  memberApiScope={requirementApiScope ? { organizationId: requirementApiScope.organizationId } : undefined}
+                  memberApiScope={{ organizationId: requirementApiScope!.organizationId }}
                 />
               )}
             </div>
@@ -960,14 +628,8 @@ export default function App() {
               </div>
               <div>
                 <h2 className="text-md font-bold text-slate-800">未检测到有效工作空间</h2>
-                <p className="text-xs text-slate-400 mt-1">点击上方 [新建空间] 按钮，一键初始化敏捷空间架构模型。</p>
+                <p className="text-xs text-slate-400 mt-1">当前账号尚未加入任何工作空间，请联系组织管理员。</p>
               </div>
-              <button
-                onClick={handleAddNewProject}
-                className="rounded-xl bg-slate-900 hover:bg-slate-800 text-xs text-white px-5 py-3 shadow-md"
-              >
-                初始化默认工作空间
-              </button>
             </div>
           )}
           </Suspense>
@@ -1015,13 +677,6 @@ export default function App() {
           </p>
         </footer>
 
-        <FeishuNotifyModal
-          isOpen={isFeishuModalOpen}
-          onClose={() => setIsFeishuModalOpen(false)}
-          result={feishuNotifyResult}
-          payload={feishuNotifyPayload}
-        />
-
         <PromptMissingModal
           isOpen={isPromptMissingOpen}
           onClose={() => setIsPromptMissingOpen(false)}
@@ -1032,14 +687,6 @@ export default function App() {
           }}
         />
 
-        <AutoConfirmNotifyModal
-          isOpen={!!pendingWebhook}
-          provider={pendingWebhook?.provider || "feishu"}
-          payload={pendingWebhook?.payload || null}
-          onConfirm={handleConfirmAutoWebhook}
-          onCancel={handleCancelAutoWebhook}
-        />
-
         <LoginModal
           isOpen={isLoginModalOpen || isLoggedOut}
           onClose={() => {
@@ -1047,22 +694,14 @@ export default function App() {
               setIsLoginModalOpen(false);
             }
           }}
-          users={users}
-          userGroups={userGroups}
-          currentUser={currentUser}
           onLogin={handleCurrentUserChange}
           isForced={isLoggedOut}
-          systemConfig={systemConfig}
         />
 
         <PersonalCenterModal
           isOpen={isPersonalCenterOpen}
           onClose={() => setIsPersonalCenterOpen(false)}
           currentUser={currentUser}
-          userGroups={userGroups}
-          users={users}
-          onUpdateUser={setCurrentUser}
-          onUpdateUsersList={updateUsers}
         />
 
       </div>

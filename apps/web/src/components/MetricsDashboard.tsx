@@ -298,9 +298,6 @@ export default function MetricsDashboard({
             ))}
           </div>
 
-          <div className="rounded-xl bg-indigo-50/30 p-3 border border-indigo-100/40 text-[11px] leading-relaxed text-indigo-600 font-sans">
-            🔥 <strong>洞察指标报告:</strong> 自动感知仿真代码提交行为，针对 P0 严重性故障执行拦截阻断率目前维持在 <strong>98.5%</strong>，安全极性表现优异。
-          </div>
         </div>
       </div>
     </div>

@@ -990,17 +990,17 @@ ${filesContext}
 
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider flex items-center gap-1">
-                      <Key className="h-3 w-3" /> 3. {apiScope ? "凭据引用 (Secret Reference)" : "访问令牌 (Access Token)"}
+                      <Key className="h-3 w-3" /> 3. 凭据引用 (Secret Reference)
                     </label>
                     <input
-                      type={apiScope ? "text" : "password"}
+                      type="text"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 outline-none focus:border-[#5B4DF6] focus:ring-1 focus:ring-[#5B4DF6]/10 transition-all bg-white font-mono"
                       value={repoToken}
                       onChange={(e) => setRepoToken(e.target.value)}
                       placeholder="vault://veritab/git/provider-token"
                     />
                     <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">
-                      {apiScope ? "这里只保存 Secret Manager 引用，浏览器和数据库都不会保存明文 Token。" : "用于拉取最新的 Commit 记录与 Diff 文本。仅限本地 Demo。"}
+                      这里只保存 Secret Manager 引用，浏览器和数据库都不会保存明文 Token。
                     </p>
                   </div>
 

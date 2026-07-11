@@ -106,8 +106,7 @@ export class GitIntegrationsService {
     const where: Prisma.CodeChangeWhereInput = {
       projectSpaceId,
       // Production views only expose changes owned by an active repository.
-      // Legacy/demo rows without a repository must never make an unconfigured
-      // workspace appear connected.
+      // Ignore orphaned changes so an unconfigured workspace never appears connected.
       repositoryId: query.repositoryId ?? { not: null },
       ...(query.branch ? { branch: query.branch } : {}),
       ...(query.q ? { OR: [

@@ -88,7 +88,6 @@ export interface User {
   id: string;
   username: string;
   nickname: string;
-  password?: string; // 密码字段，默认为 123456
   email?: string; // 邮箱字段
   feishuUserId?: string; // 飞书 OpenID (user_id) 字段
   wechatUserId?: string; // 企业微信 ID

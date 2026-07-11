@@ -66,7 +66,7 @@ export default function TestCaseXMindMindmap({
   const checkActionPermission = (action: string) => {
     return checkPermission(currentUser, userGroups, ProjectTab.TESTCASE, action);
   };
-  const [projectName, setProjectName] = useState<string>("默认项目空间");
+  const projectName = "项目空间";
   const [deleteCaseToConfirm, setDeleteCaseToConfirm] = useState<TestCase | null>(null);
   const [deleteFolderToConfirm, setDeleteFolderToConfirm] = useState<FolderType | null>(null);
 
@@ -74,23 +74,6 @@ export default function TestCaseXMindMindmap({
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState<string>("");
   const [showFolderChoiceModal, setShowFolderChoiceModal] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("veritab_projects");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const found = parsed.find((p: any) => p.id === projectId);
-          if (found && found.name) {
-            setProjectName(found.name);
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to load project name", e);
-    }
-  }, [projectId]);
 
   const [isFullscreen, setIsFullscreen] = useState<boolean>(true);
 

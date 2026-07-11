@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { X, FileUp, Paperclip } from "lucide-react";
+import { X } from "lucide-react";
 import {
   Issue,
   IssueType,
@@ -42,48 +42,6 @@ export default function CreateRequirementModal({
   const [newAssigneeId, setNewAssigneeId] = useState(activeUsers[0]?.id || "");
   const [newEstimatedStartTime, setNewEstimatedStartTime] = useState("");
   const [newEstimatedEndTime, setNewEstimatedEndTime] = useState("");
-  const [newImgUrl, setNewImgUrl] = useState("");
-
-  // Custom mock physical attachment states
-  const [mockAttachments, setMockAttachments] = useState<
-    { name: string; size: string; type: string }[]
-  >([]);
-
-  // Mock File Upload change handler checking sizes
-  const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const files = Array.from(e.target.files) as File[];
-
-    const validAttachments: { name: string; size: string; type: string }[] = [];
-
-    files.forEach((file) => {
-      // 10MB size limit check
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (file.size > maxSize) {
-        alert(
-          `⚠️ 上传错误: 文件 "${file.name}" 大小（${(file.size / 1024 / 1024).toFixed(2)}MB）超出了限制，单个附件最多不可超过 10MB。`
-        );
-        return;
-      }
-
-      const sizeStr =
-        file.size > 1024 * 1024
-          ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-          : `${(file.size / 1024).toFixed(1)} KB`;
-
-      validAttachments.push({
-        name: file.name,
-        size: sizeStr,
-        type: file.type || "application/octet-stream",
-      });
-    });
-
-    setMockAttachments((prev) => [...prev, ...validAttachments]);
-  };
-
-  const handleRemoveAttachment = (idx: number) => {
-    setMockAttachments((prev) => prev.filter((_, i) => i !== idx));
-  };
 
   const handleSaveNew = () => {
     if (!newTitle.trim()) {
@@ -91,12 +49,6 @@ export default function CreateRequirementModal({
       return;
     }
     setValidationError("");
-
-    // Map attachments name to virtual urls
-    const mappedAttachments = mockAttachments.map(
-      (m) =>
-        `https://veritab.sandbox/attachments/${encodeURIComponent(m.name)}`
-    );
 
     const created: Issue = {
       id: generateReqId(),
@@ -109,8 +61,6 @@ export default function CreateRequirementModal({
       assigneeId: newAssigneeId || undefined,
       estimatedStartTime: newEstimatedStartTime || undefined,
       estimatedEndTime: newEstimatedEndTime || undefined,
-      attachmentUrls: mappedAttachments,
-      imageUrl: newImgUrl || undefined,
       linkToTestCases: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -248,66 +198,6 @@ export default function CreateRequirementModal({
               />
             </div>
 
-            {/* Requirement Attachment Form */}
-            <div className="sm:col-span-2 space-y-2 text-left">
-              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                上传参考附件材料
-              </label>
-
-              <div className="flex items-center justify-center w-full">
-                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer bg-slate-50/30 hover:bg-slate-50 transition-colors">
-                  <div className="flex flex-col items-center justify-center pt-3 pb-3">
-                    <FileUp className="w-5 h-5 mb-1 text-slate-400" />
-                    <p className="text-[11px] text-slate-500 font-bold">
-                      <span>点击上传</span>
-                      <span className="text-slate-400 font-medium font-sans">
-                        {" "}
-                        或拖拽文件至此
-                      </span>
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-sans uppercase">
-                      PDF, XLS, PNG, DMG, PPT (每个文件限制 &lt; 10MB)
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleAttachmentUpload}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              {mockAttachments.length > 0 && (
-                <div className="grid gap-2 sm:grid-cols-2 mt-2">
-                  {mockAttachments.map((f, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200 animate-fade-in text-xs font-medium text-slate-700"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Paperclip className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                        <div className="truncate pr-1.5">
-                          <p className="font-bold text-slate-700 truncate">
-                            {f.name}
-                          </p>
-                          <p className="text-[9px] text-slate-400 font-semibold font-sans">
-                            {f.size}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttachment(idx)}
-                        className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
 

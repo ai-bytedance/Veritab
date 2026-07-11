@@ -20,10 +20,6 @@ const baseUrl = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, 
 let accessToken: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
-export function isRemoteApiMode(): boolean {
-  return import.meta.env.VITE_API_MODE === "remote";
-}
-
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }

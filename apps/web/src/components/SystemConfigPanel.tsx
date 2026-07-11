@@ -6,13 +6,11 @@
 import React, { useState } from "react";
 import {
   User as SystemUser,
-  UserGroup,
   SystemConfig,
   Project
 } from "../types";
 import {
   Cpu,
-  Settings,
   Save,
   ShieldCheck,
   CheckCircle,
@@ -26,17 +24,12 @@ import {
   AlertCircle,
   Sparkles,
   Brain,
-  Bot,
   Zap,
-  Globe,
-  QrCode
+  Globe
 } from "lucide-react";
 
 import CustomSelect from "./CustomSelect";
-import WebhookConfigSection from "./WebhookConfigSection";
-import UserManagementSection from "./UserManagementSection";
 import PromptTemplateSection from "./PromptTemplateSection";
-import SsoConfigSection from "./SsoConfigSection";
 import RemoteMemberManagement from "./RemoteMemberManagement";
 import { MemberApiScope } from "../features/members/api/types";
 
@@ -134,32 +127,14 @@ const CustomLogo = ({ className = "h-4.5 w-4.5" }: { className?: string }) => (
 interface SystemConfigPanelProps {
   systemConfig: SystemConfig;
   onUpdateConfig: (cfg: SystemConfig) => void;
-  users: SystemUser[];
-  onAddUser: (u: SystemUser) => void;
-  onDeleteUser: (id: string) => void;
-  onToggleUserStatus: (id: string) => void;
-  onUpdateUser: (u: SystemUser) => void;
-  userGroups: UserGroup[];
-  onAddUserGroup: (g: UserGroup) => void;
-  onDeleteUserGroup: (id: string) => void;
-  onUpdateUserGroup: (g: UserGroup) => void;
   projects: Project[];
   currentUser: SystemUser;
-  memberApiScope?: MemberApiScope;
+  memberApiScope: MemberApiScope;
 }
 
 export default function SystemConfigPanel({
   systemConfig,
   onUpdateConfig,
-  users,
-  onAddUser,
-  onDeleteUser,
-  onToggleUserStatus,
-  onUpdateUser,
-  userGroups,
-  onAddUserGroup,
-  onDeleteUserGroup,
-  onUpdateUserGroup,
   projects,
   currentUser,
   memberApiScope,
@@ -174,7 +149,7 @@ export default function SystemConfigPanel({
   };
 
   // Tab State
-  const [settingsTab, setSettingsTab] = useState<"project" | "ai" | "prompt" | "gateway" | "sso" | "navigation" | "users">("project");
+  const [settingsTab, setSettingsTab] = useState<"project" | "ai" | "prompt" | "navigation" | "users">("project");
 
   // Project Brand Info states
   const [projectName, setProjectName] = useState(systemConfig.projectName || "Veritab");
@@ -394,28 +369,6 @@ export default function SystemConfigPanel({
           <span>AI 指令模板</span>
         </button>
         <button
-          onClick={() => setSettingsTab("gateway")}
-          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
-            settingsTab === "gateway"
-              ? "bg-white text-indigo-700 shadow-3xs"
-              : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/40"
-          }`}
-        >
-          <Settings className="h-4 w-4" />
-          <span>推送网关</span>
-        </button>
-        <button
-          onClick={() => setSettingsTab("sso")}
-          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
-            settingsTab === "sso"
-              ? "bg-white text-indigo-700 shadow-3xs"
-              : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/40"
-          }`}
-        >
-          <QrCode className="h-4 w-4" />
-          <span>三方登录</span>
-        </button>
-        <button
           onClick={() => setSettingsTab("navigation")}
           className={`flex-1 py-2 px-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
             settingsTab === "navigation"
@@ -597,7 +550,7 @@ export default function SystemConfigPanel({
                   { id: "qwen", label: "Qwen", desc: "通义千问", icon: QwenLogo },
                   { id: "zhipu", label: "Zhipu", desc: "智谱清言", icon: ZhipuLogo },
                   { id: "doubao", label: "Doubao", desc: "火山引擎", icon: DoubaoLogo },
-                  { id: "custom", label: "Custom", desc: "兼容协议", icon: CustomLogo },
+                  { id: "custom", label: "Custom", desc: "自定义协议", icon: CustomLogo },
                 ].map((p) => {
                   const isSelected = activeProvider === p.id;
                   const IconComp = p.icon;
@@ -779,28 +732,6 @@ export default function SystemConfigPanel({
         />
       )}
 
-      {settingsTab === "gateway" && (
-        <div className="space-y-6 max-w-4xl animate-fade-in animate-in fade-in duration-200" id="system-config-gateway-tab">
-          {/* Module 3 delegating webhook integrations */}
-          <WebhookConfigSection
-            systemConfig={systemConfig}
-            onUpdateConfig={onUpdateConfig}
-            isAdmin={isAdmin}
-          />
-        </div>
-      )}
-
-      {settingsTab === "sso" && (
-        <div className="space-y-6 max-w-4xl animate-fade-in animate-in fade-in duration-200" id="system-config-sso-tab">
-          <SsoConfigSection
-            systemConfig={systemConfig}
-            onUpdateConfig={onUpdateConfig}
-            isAdmin={isAdmin}
-            users={users}
-          />
-        </div>
-      )}
-
       {settingsTab === "navigation" && (
         <div className="space-y-6 max-w-4xl animate-fade-in animate-in fade-in duration-200" id="system-config-navigation-tab">
           {/* Module 2.5: Menu visibility settings */}
@@ -887,19 +818,7 @@ export default function SystemConfigPanel({
 
       {settingsTab === "users" && (
         <div className="w-full animate-fade-in animate-in fade-in duration-200" id="system-config-users-tab">
-          {memberApiScope ? <RemoteMemberManagement scope={memberApiScope} currentUser={currentUser} /> : <UserManagementSection
-            users={users}
-            onAddUser={onAddUser}
-            onDeleteUser={onDeleteUser}
-            onToggleUserStatus={onToggleUserStatus}
-            onUpdateUser={onUpdateUser}
-            userGroups={userGroups}
-            onAddUserGroup={onAddUserGroup}
-            onDeleteUserGroup={onDeleteUserGroup}
-            onUpdateUserGroup={onUpdateUserGroup}
-            isAdmin={isAdmin}
-            currentUser={currentUser}
-          />}
+          <RemoteMemberManagement scope={memberApiScope} currentUser={currentUser} />
         </div>
       )}
     </div>

@@ -14,7 +14,6 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  Plus,
   ChevronDown,
   User,
   FolderOpen,
@@ -30,7 +29,6 @@ interface SidebarProps {
   projects: Project[];
   selectedProjectId: string;
   onProjectChange: (id: string) => void;
-  onNewProject: () => void;
   systemModel: string;
   currentUser: SystemUser;
   onCurrentUserChange: (user: SystemUser) => void;
@@ -49,7 +47,6 @@ export default function Sidebar({
   projects,
   selectedProjectId,
   onProjectChange,
-  onNewProject,
   systemModel,
   currentUser,
   onCurrentUserChange,
@@ -112,17 +109,7 @@ export default function Sidebar({
 
         {/* Workspace Dropdown Switcher (styled resembling search/box header cards) */}
         <div className="p-3">
-          {isCollapsed ? (
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={onNewProject}
-                className="p-2.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-500 transition-all hover:text-indigo-600 shadow-sm"
-                title="新建工作空间"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-          ) : (
+          {!isCollapsed && (
             <div className="relative">
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -179,18 +166,6 @@ export default function Sidebar({
                           </button>
                         );
                       })}
-                    </div>
-                    <div className="p-1.5 bg-slate-50/50">
-                      <button
-                        onClick={() => {
-                          onNewProject();
-                          setIsDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center justify-center gap-1 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs font-bold text-white transition-all shadow-md cursor-pointer"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>新建工作空间</span>
-                      </button>
                     </div>
                   </div>
                 </>
