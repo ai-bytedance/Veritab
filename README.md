@@ -26,4 +26,6 @@ npm run build
 
 本地基础设施与环境变量参见 [.env.example](.env.example) 和 [compose.yaml](compose.yaml)。详细架构见 [docs/architecture.md](docs/architecture.md)。
 
+生产容器部署参见 [docs/deployment.md](docs/deployment.md) 与 [compose.production.yaml](compose.production.yaml)。
+
 AI 能力由 NestJS 服务端网关统一调用。`AI_API_KEY` 只能通过服务端环境变量或生产 Secret Manager 注入，禁止写入 Vite 环境变量、浏览器存储或数据库业务配置。
