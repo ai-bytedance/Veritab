@@ -31,4 +31,5 @@ export const envValidationSchema = Joi.object({
   S3_UPLOAD_URL_TTL: Joi.number().integer().min(60).max(3600).default(600),
   S3_DOWNLOAD_URL_TTL: Joi.number().integer().min(30).max(3600).default(300),
   FILE_MAX_SIZE_BYTES: Joi.number().integer().min(1).max(104857600).default(10485760),
+  FILE_PENDING_RETENTION_HOURS: Joi.number().integer().min(1).max(168).default(24),
 }).and("S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY");

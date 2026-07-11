@@ -63,6 +63,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import { generateCaseId } from "../lib/idUtils";
 import { useTestCaseBridge } from "../features/test-cases/api/useTestCases";
 import { TestCaseApiScope } from "../features/test-cases/api/types";
+import ResourceAttachments from "./ResourceAttachments";
 import { useDefectBridge } from "../features/defects/api/useDefects";
 
 interface TestCaseWorkspaceProps {
@@ -974,6 +975,7 @@ ${req.content}
 
             {/* Scrollable Detail Panel Container */}
             <div className="flex-1 overflow-y-auto p-4">
+              <div className="mb-4"><ResourceAttachments scope={apiScope} resourceType="TEST_CASE" resourceId={activeCase.id} /></div>
               <TestCaseDetailPanel
                 projectId={projectId}
                 activeCase={activeCase}

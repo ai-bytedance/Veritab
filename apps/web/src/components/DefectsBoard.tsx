@@ -50,6 +50,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import CustomSelect from "./CustomSelect";
 import { severityToApi, statusToApi, useDefectBridge } from "../features/defects/api/useDefects";
 import { DefectApiScope } from "../features/defects/api/types";
+import ResourceAttachments from "./ResourceAttachments";
 import { useRequirementBridge } from "../features/requirements/api/useRequirements";
 import { useTestCaseBridge } from "../features/test-cases/api/useTestCases";
 
@@ -1249,6 +1250,7 @@ export default function DefectsBoard({
 
             {/* Drawer scrollable content */}
             <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
+              <div className="mb-4"><ResourceAttachments scope={apiScope} resourceType="DEFECT" resourceId={activeIssue.id} /></div>
               <DefectDetailView
                 activeIssue={activeIssue}
                 users={users}

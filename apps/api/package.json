@@ -9,6 +9,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "start:worker": "node dist/notifications-worker.js",
+    "start:maintenance": "node dist/maintenance-worker.js",
     "lint": "tsc --noEmit",
     "test": "jest --runInBand",
     "test:e2e": "jest --config test/jest-e2e.json --runInBand",
