@@ -3,7 +3,7 @@ export interface TestCaseApiScope {
   projectSpaceId: string;
 }
 
-export type ApiTestCaseGrade = "P0" | "P1" | "P2" | "P3";
+type ApiTestCaseGrade = "P0" | "P1" | "P2" | "P3";
 export type ApiTestResultStatus = "UNTESTED" | "PASS" | "FAIL" | "BLOCKED";
 
 export interface ApiTestCase {
@@ -33,7 +33,7 @@ export interface ApiTestCase {
   defectLinks: Array<{ defectId: string; defect: { id: string; displayNo: string; title: string } }>;
 }
 
-export interface ApiTestCaseFolder {
+interface ApiTestCaseFolder {
   id: string;
   name: string;
   parentId: string | null;

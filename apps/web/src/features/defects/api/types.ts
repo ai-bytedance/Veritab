@@ -9,7 +9,7 @@ export type ApiDefectStatus =
   | "REOPENED";
 
 export type ApiDefectSeverity = "BLOCKER" | "CRITICAL" | "MAJOR" | "MINOR" | "TRIVIAL";
-export type ApiDefectSource = "MANUAL" | "TEST_EXECUTION" | "CODE_CHANGE" | "IMPORT" | "MONITORING";
+type ApiDefectSource = "MANUAL" | "TEST_EXECUTION" | "CODE_CHANGE" | "IMPORT" | "MONITORING";
 
 export interface DefectApiScope {
   organizationId: string;

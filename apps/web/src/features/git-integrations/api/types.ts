@@ -11,7 +11,7 @@ export interface ApiGitRepository {
   lastSyncedAt: string | null;
   version: number;
 }
-export interface ApiCodeChange {
+interface ApiCodeChange {
   id: string;
   commitSha: string;
   title: string;

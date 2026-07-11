@@ -15,7 +15,6 @@ export enum ProjectTab {
 
 export enum IssueType {
   REQUIREMENT = "requirement",
-  TASK = "task",
   DEFECT = "defect",
 }
 

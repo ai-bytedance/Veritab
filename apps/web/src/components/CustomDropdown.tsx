@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Search, Check } from "lucide-react";
 
-export interface DropdownOption {
+interface DropdownOption {
   value: string;
   label: string;
   icon?: React.ReactNode;

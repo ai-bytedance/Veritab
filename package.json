@@ -30,8 +30,5 @@
     "prisma:generate": "npm run prisma:generate --workspace=@veritab/api",
     "prisma:validate": "npm run prisma:validate --workspace=@veritab/api",
     "prisma:bootstrap": "npm run prisma:bootstrap --workspace=@veritab/api"
-  },
-  "devDependencies": {
-    "ajv": "8.18.0"
   }
 }

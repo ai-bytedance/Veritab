@@ -49,7 +49,7 @@ function key(scope: RequirementApiScope | undefined, filters: RequirementFilters
   return ["requirements", scope?.organizationId, scope?.projectSpaceId, filters] as const;
 }
 
-export function useRequirementsPage(scope: RequirementApiScope | undefined, filters: RequirementFilters) {
+function useRequirementsPage(scope: RequirementApiScope | undefined, filters: RequirementFilters) {
   return useQuery({
     queryKey: key(scope, filters),
     queryFn: () => requirementsApi.list(scope!, filters),

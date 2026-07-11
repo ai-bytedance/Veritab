@@ -53,7 +53,7 @@ function key(scope: DefectApiScope | undefined, filters: DefectFilters) {
   return ["defects", scope?.organizationId, scope?.projectSpaceId, filters] as const;
 }
 
-export function useDefectsPage(scope: DefectApiScope | undefined, filters: DefectFilters) {
+function useDefectsPage(scope: DefectApiScope | undefined, filters: DefectFilters) {
   return useQuery({
     queryKey: key(scope, filters),
     queryFn: () => defectsApi.list(scope!, filters),

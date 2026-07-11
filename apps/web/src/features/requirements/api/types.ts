@@ -8,7 +8,7 @@ export type ApiRequirementStatus =
   | "CANCELLED";
 
 export type ApiRequirementPriority = "P0" | "P1" | "P2" | "P3";
-export type ApiRequirementType = "EPIC" | "FEATURE" | "STORY" | "TASK";
+type ApiRequirementType = "EPIC" | "FEATURE" | "STORY" | "TASK";
 
 export interface RequirementApiScope {
   organizationId: string;

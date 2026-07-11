@@ -20,7 +20,7 @@ const baseUrl = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, 
 let accessToken: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
-export function setAccessToken(token: string | null): void {
+function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
