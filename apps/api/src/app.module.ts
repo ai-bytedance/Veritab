@@ -16,6 +16,7 @@ import { RbacModule } from "./modules/rbac/rbac.module";
 import { RequirementsModule } from "./modules/requirements/requirements.module";
 import { TestCasesModule } from "./modules/test-cases/test-cases.module";
 import { UsersModule } from "./modules/users/users.module";
+import { AiModule } from "./modules/ai/ai.module";
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { UsersModule } from "./modules/users/users.module";
     RequirementsModule,
     TestCasesModule,
     HealthModule,
+    AiModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

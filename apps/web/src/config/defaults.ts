@@ -16,7 +16,7 @@ const disabledConnection = (): ConnectionConfig => ({
 export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   activeModelProvider: "unconfigured",
   modelConfigs: {
-    unconfigured: { name: "未配置 AI 服务", endpoint: "", apiKey: "", modelSlug: "" },
+    unconfigured: { name: "服务端 AI Gateway", modelSlug: "server-managed" },
   },
   feishuConfig: disabledConnection(),
   dingtalkConfig: disabledConnection(),

@@ -179,39 +179,12 @@ export default function App() {
 
   // Triggering the generic express back API for multi-model invokes
   const handleInvokeAI = async (prompt: string): Promise<string> => {
-    try {
-      const activeProvider = systemConfig.activeModelProvider;
-      const activeProviderConfig = systemConfig.modelConfigs[activeProvider];
-
-      const res = await fetch("/api/ai/invoke", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt,
-          provider: activeProvider,
-          config: activeProviderConfig,
-        }),
-      });
-
-      if (!res.ok) {
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || errorData.details || "API Request Failed");
-        } else {
-          const textError = await res.text();
-          throw new Error(`API Request Failed (Status ${res.status}): ${textError.substring(0, 150)}`);
-        }
-      }
-
-      const responseJSON = await res.json();
-      return responseJSON.text || "AI returns a blank response.";
-    } catch (e: any) {
-      console.error("AI Error:", e);
-      throw e;
-    }
+    if (!requirementApiScope) throw new Error("当前空间上下文不可用。");
+    const response = await apiRequest<{ text: string }>(
+      `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}/ai/invoke`,
+      { method: "POST", body: JSON.stringify({ prompt }) },
+    );
+    return response.text;
   };
 
   /*

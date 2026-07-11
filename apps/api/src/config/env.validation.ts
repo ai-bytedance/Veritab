@@ -17,4 +17,8 @@ export const envValidationSchema = Joi.object({
   JWT_AUDIENCE: Joi.string().default("veritab-web"),
   COOKIE_SECURE: Joi.boolean().default(false),
   COOKIE_DOMAIN: Joi.string().allow("").optional(),
+  AI_BASE_URL: Joi.string().uri({ scheme: ["https", "http"] }).optional(),
+  AI_API_KEY: Joi.string().min(8).optional(),
+  AI_MODEL: Joi.string().max(160).optional(),
+  AI_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(30000),
 });

@@ -234,8 +234,6 @@ export interface SystemConfig {
   modelConfigs: {
     [provider: string]: {
       name: string;
-      endpoint: string;
-      apiKey: string;
       modelSlug: string;
     };
   };
