@@ -15,7 +15,7 @@ interface ImportTestCasesModalProps {
   currentFolderId?: string | null;
   currentUser?: User;
   onClose: () => void;
-  onImport: (importedCases: TestCase[]) => void;
+  onImport: (importedCases: TestCase[]) => Promise<void>;
 }
 
 interface ParsedTestCase {
@@ -43,6 +43,8 @@ const ImportTestCasesModal: React.FC<ImportTestCasesModalProps> = ({
   const [rawText, setRawText] = useState("");
   const [parsedData, setParsedData] = useState<ParsedTestCase[]>([]);
   const [assigneeId, setAssigneeId] = useState<string>(activeUsers[0]?.id || "");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string>(() => {
     if (!currentFolderId) return "";
     const isRealFolder = folders.some(f => f.id === currentFolderId);
@@ -236,7 +238,7 @@ const ImportTestCasesModal: React.FC<ImportTestCasesModalProps> = ({
     reader.readAsText(file);
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (parsedData.length === 0) return;
 
     const importedCases: TestCase[] = parsedData.map((item, index) => {
@@ -266,8 +268,16 @@ const ImportTestCasesModal: React.FC<ImportTestCasesModalProps> = ({
       };
     });
 
-    onImport(importedCases);
-    onClose();
+    setIsImporting(true);
+    setImportError(null);
+    try {
+      await onImport(importedCases);
+      onClose();
+    } catch (reason) {
+      setImportError(reason instanceof Error ? reason.message : "导入失败，请重试。");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -538,10 +548,13 @@ const ImportTestCasesModal: React.FC<ImportTestCasesModalProps> = ({
         </div>
 
         {/* Footer actions */}
-        <div className="p-4 border-t border-slate-100 flex items-center justify-end bg-slate-50/50 gap-2">
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+          {importError && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{importError}</p>}
+          <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
+            disabled={isImporting}
             className="px-4 py-2 border border-slate-200 text-slate-500 rounded-xl hover:bg-white text-xs font-bold transition-all cursor-pointer"
           >
             取消
@@ -549,11 +562,12 @@ const ImportTestCasesModal: React.FC<ImportTestCasesModalProps> = ({
           <button
             type="button"
             onClick={handleConfirmImport}
-            disabled={parsedData.length === 0}
+            disabled={parsedData.length === 0 || isImporting}
             className="px-5 py-2 rounded-xl text-white text-xs font-bold bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-100 disabled:opacity-40 transition-all cursor-pointer"
           >
-            开始导入并分配用例 ({parsedData.length})
+            {isImporting ? "正在写入服务端…" : `开始导入并分配用例 (${parsedData.length})`}
           </button>
+          </div>
         </div>
       </div>
     </div>

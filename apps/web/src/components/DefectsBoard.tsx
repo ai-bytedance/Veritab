@@ -1345,12 +1345,10 @@ export default function DefectsBoard({
           activeUsers={activeUsers}
           currentUser={currentUser}
           onClose={() => setIsImporting(false)}
-          onImport={(imported) => {
-            imported.forEach((defect) => onAddIssue(defect));
-            setIsImporting(false);
+          onImport={async (imported) => {
+            await remote.createIssues(imported);
             if (imported.length > 0) {
-              setSelectedIssueId(imported[0].id);
-              setIsDrawerOpen(true); // Open newly imported defect in drawer!
+              showToast(`已成功导入 ${imported.length} 条缺陷。`, "success");
             }
           }}
         />

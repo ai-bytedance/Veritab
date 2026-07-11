@@ -1136,10 +1136,7 @@ ${req.content}
           currentFolderId={activeFolderId}
           currentUser={currentUser}
           onClose={() => setIsImporting(false)}
-          onImport={(imported) => {
-            imported.forEach(tc => onAddTestCase(tc));
-            setIsImporting(false);
-          }}
+          onImport={(imported) => remote.createTestCases(imported)}
         />
       )}
 

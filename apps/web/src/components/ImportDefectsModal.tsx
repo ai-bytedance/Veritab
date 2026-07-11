@@ -13,7 +13,7 @@ interface ImportDefectsModalProps {
   activeUsers: User[];
   currentUser?: User;
   onClose: () => void;
-  onImport: (importedIssues: Issue[]) => void;
+  onImport: (importedIssues: Issue[]) => Promise<void>;
 }
 
 interface ParsedDefect {
@@ -40,6 +40,8 @@ const ImportDefectsModal: React.FC<ImportDefectsModalProps> = ({
   const [rawText, setRawText] = useState("");
   const [parsedData, setParsedData] = useState<ParsedDefect[]>([]);
   const [assigneeId, setAssigneeId] = useState<string>(activeUsers[0]?.id || "");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sampleCsv = `标题,模块描述,严重程度,复现步骤,预期结果,实际结果
@@ -234,7 +236,7 @@ const ImportDefectsModal: React.FC<ImportDefectsModalProps> = ({
     reader.readAsText(file);
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (parsedData.length === 0) return;
 
     const importedIssues: Issue[] = parsedData.map((item, index) => {
@@ -281,8 +283,16 @@ ${item.actualResult || "无"}`;
       };
     });
 
-    onImport(importedIssues);
-    onClose();
+    setIsImporting(true);
+    setImportError(null);
+    try {
+      await onImport(importedIssues);
+      onClose();
+    } catch (reason) {
+      setImportError(reason instanceof Error ? reason.message : "导入失败，请重试。");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -535,10 +545,13 @@ ${item.actualResult || "无"}`;
         </div>
 
         {/* Footer actions */}
-        <div className="p-4 border-t border-slate-100 flex items-center justify-end bg-slate-50/50 gap-2">
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+          {importError && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{importError}</p>}
+          <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
+            disabled={isImporting}
             className="px-4 py-2 border border-slate-200 text-slate-500 rounded-xl hover:bg-white text-xs font-bold transition-all cursor-pointer"
           >
             取消
@@ -546,11 +559,12 @@ ${item.actualResult || "无"}`;
           <button
             type="button"
             onClick={handleConfirmImport}
-            disabled={parsedData.length === 0}
+            disabled={parsedData.length === 0 || isImporting}
             className="px-5 py-2 rounded-xl text-white text-xs font-bold bg-rose-600 hover:bg-rose-700 shadow-md shadow-rose-100 disabled:opacity-40 transition-all cursor-pointer flex items-center gap-1.5"
           >
-            <span>开始导入数据并追踪 ({parsedData.length})</span>
+            <span>{isImporting ? "正在写入服务端…" : `开始导入数据并追踪 (${parsedData.length})`}</span>
           </button>
+          </div>
         </div>
       </div>
     </div>

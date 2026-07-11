@@ -289,6 +289,16 @@ export function useDefectBridge(
     isSaving: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
     error: query.error || createMutation.error || updateMutation.error || deleteMutation.error,
     createIssue: (issue: Issue) => createMutation.mutate(issue),
+    createIssues: async (issues: Issue[]) => {
+      for (let index = 0; index < issues.length; index += 1) {
+        try {
+          await createMutation.mutateAsync(issues[index]);
+        } catch (reason) {
+          const detail = reason instanceof Error ? reason.message : "未知错误";
+          throw new Error(`已写入 ${index} 条，第 ${index + 1} 条失败：${detail}`);
+        }
+      }
+    },
     updateIssue: queueUpdate,
     deleteIssue: (id: string) => deleteMutation.mutate(id),
   };

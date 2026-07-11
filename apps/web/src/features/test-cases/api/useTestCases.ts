@@ -246,6 +246,16 @@ export function useTestCaseBridge(scope: TestCaseApiScope | undefined, projectId
       createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || foldersMutation.isPending,
     error: query.error || createMutation.error || updateMutation.error || deleteMutation.error || foldersMutation.error,
     createTestCase: (value: TestCase) => createMutation.mutate(value),
+    createTestCases: async (values: TestCase[]) => {
+      for (let index = 0; index < values.length; index += 1) {
+        try {
+          await createMutation.mutateAsync(values[index]);
+        } catch (reason) {
+          const detail = reason instanceof Error ? reason.message : "未知错误";
+          throw new Error(`已写入 ${index} 条，第 ${index + 1} 条失败：${detail}`);
+        }
+      }
+    },
     updateTestCase: queueUpdate,
     deleteTestCase: (id: string) => deleteMutation.mutate(id),
     deleteTestCases: (ids: string[]) => ids.forEach((id) => deleteMutation.mutate(id)),
