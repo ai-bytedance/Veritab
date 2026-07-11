@@ -4,6 +4,6 @@ Authenticated organization administrators can list members, update membership st
 
 Invitation activation is public at `POST /api/v1/auth/invitations/accept`. The raw activation token is returned only by the invitation creation response; PostgreSQL stores only its SHA-256 hash. Tokens expire after 24 hours by default, can be configured from 1 to 168 hours, are single-use, and cannot be used after revocation.
 
-Until the notification worker is implemented, the caller is responsible for delivering the one-time activation token through an approved secure channel. Tokens must never be written to logs, audit metadata, analytics, or URLs accessible to third-party referrers.
+Invitation tokens are intentionally not sent by the generic project notification worker. The administrator must deliver the one-time activation token through an approved identity or invitation channel. Tokens must never be written to logs, audit metadata, analytics, or URLs accessible to third-party referrers.
 
 Self-suspension and self-demotion are rejected to prevent an organization administrator from locking themselves out. All successful status, role, invitation creation, invitation revocation, and invitation acceptance operations create audit records.

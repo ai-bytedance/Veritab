@@ -3,10 +3,14 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Prisma, WebhookProvider } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { WebhookCryptoService } from "./webhook-crypto.service";
+import { NOTIFICATION_EVENT_TYPES } from "./dto/update-channel.dto";
 
 interface ClaimedEvent {
   id: string;
   attempts: number;
+  aggregateType: string;
+  aggregateId: string;
+  eventType: string;
   payload: Prisma.JsonValue;
 }
 
@@ -30,7 +34,7 @@ export class NotificationWorkerService {
     const events = await this.prisma.$queryRaw<ClaimedEvent[]>(Prisma.sql`
       WITH candidate AS (
         SELECT id FROM outbox_events
-        WHERE event_type = 'NotificationRequested'
+        WHERE event_type IN ('NotificationRequested', ${Prisma.join(NOTIFICATION_EVENT_TYPES)})
           AND processed_at IS NULL
           AND dead_lettered_at IS NULL
           AND next_attempt_at <= NOW()
@@ -43,12 +47,17 @@ export class NotificationWorkerService {
       SET locked_until = NOW() + INTERVAL '60 seconds', locked_by = ${this.workerId}, attempts = attempts + 1
       FROM candidate
       WHERE event.id = candidate.id
-      RETURNING event.id, event.attempts, event.payload
+      RETURNING event.id, event.attempts, event.aggregate_type AS "aggregateType",
+        event.aggregate_id AS "aggregateId", event.event_type AS "eventType", event.payload
     `);
     const event = events[0];
     if (!event) return false;
     try {
-      await this.deliver(this.parsePayload(event.payload));
+      if (event.eventType === "NotificationRequested") {
+        await this.deliver(this.parsePayload(event.payload));
+      } else {
+        await this.dispatchDomainEvent(event);
+      }
       await this.prisma.outboxEvent.updateMany({
         where: { id: event.id, lockedBy: this.workerId },
         data: { processedAt: new Date(), lockedBy: null, lockedUntil: null, lastError: null },
@@ -69,6 +78,75 @@ export class NotificationWorkerService {
       this.logger.warn(`Notification event ${event.id} failed on attempt ${event.attempts}: ${message}`);
     }
     return true;
+  }
+
+  private async dispatchDomainEvent(event: ClaimedEvent): Promise<void> {
+    const context = this.parseDomainContext(event.payload);
+    const message = await this.describeDomainEvent(event);
+    await this.prisma.$transaction(async (tx) => {
+      const channels = await tx.webhookConfig.findMany({
+        where: {
+          organizationId: context.organizationId,
+          projectSpaceId: context.projectSpaceId,
+          enabled: true,
+          eventTypes: { has: event.eventType },
+        },
+        select: { id: true, provider: true },
+      });
+      for (const channel of channels) {
+        await tx.outboxEvent.create({
+          data: {
+            aggregateType: "NotificationRequest",
+            aggregateId: `${event.id}:${channel.id}`,
+            eventType: "NotificationRequested",
+            payload: {
+              organizationId: context.organizationId,
+              projectSpaceId: context.projectSpaceId,
+              channelId: channel.id,
+              provider: channel.provider,
+              title: message.title,
+              body: message.body,
+              link: null,
+              sourceEventId: event.id,
+            },
+          },
+        });
+      }
+      await tx.outboxEvent.updateMany({
+        where: { id: event.id, lockedBy: this.workerId },
+        data: { processedAt: new Date(), lockedBy: null, lockedUntil: null, lastError: null },
+      });
+    });
+  }
+
+  private parseDomainContext(value: Prisma.JsonValue): { organizationId: string; projectSpaceId: string } {
+    if (!value || Array.isArray(value) || typeof value !== "object") throw new Error("Invalid domain event payload");
+    const payload = value as Record<string, Prisma.JsonValue>;
+    if (typeof payload.organizationId !== "string" || typeof payload.projectSpaceId !== "string") {
+      throw new Error("Invalid domain event context");
+    }
+    return { organizationId: payload.organizationId, projectSpaceId: payload.projectSpaceId };
+  }
+
+  private async describeDomainEvent(event: ClaimedEvent): Promise<{ title: string; body: string }> {
+    const labels: Record<string, string> = {
+      RequirementCreated: "需求已创建", RequirementUpdated: "需求已更新", RequirementStatusChanged: "需求状态已变更", RequirementDeleted: "需求已删除",
+      DefectCreated: "缺陷已创建", DefectUpdated: "缺陷已更新", DefectStatusChanged: "缺陷状态已变更", DefectCommentCreated: "缺陷新增评论", DefectReplyCreated: "缺陷评论新增回复", DefectDeleted: "缺陷已删除",
+      TestCaseCreated: "用例已创建", TestCaseUpdated: "用例已更新", TestCaseExecuted: "用例已执行", TestCaseDeleted: "用例已删除",
+    };
+    let resource: { displayNo: string; title: string } | null = null;
+    if (event.aggregateType === "Requirement") {
+      resource = await this.prisma.requirement.findUnique({ where: { id: event.aggregateId }, select: { displayNo: true, title: true } });
+    } else if (event.aggregateType === "Defect") {
+      resource = await this.prisma.defect.findUnique({ where: { id: event.aggregateId }, select: { displayNo: true, title: true } });
+    } else if (event.aggregateType === "TestCase") {
+      resource = await this.prisma.testCase.findUnique({ where: { id: event.aggregateId }, select: { displayNo: true, title: true } });
+    }
+    const action = labels[event.eventType] ?? event.eventType;
+    return {
+      title: `[Veritab] ${action}`,
+      body: resource ? `${resource.displayNo} ${resource.title}` : `对象 ${event.aggregateId}`,
+    };
   }
 
   private parsePayload(value: Prisma.JsonValue): NotificationPayload {
@@ -113,6 +191,22 @@ export class NotificationWorkerService {
       throw new Error("Notification provider is unreachable");
     }
     if (!response.ok) throw new Error(`Notification provider returned HTTP ${response.status}`);
+    const responseText = await response.text();
+    if (responseText) {
+      let result: unknown;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        return;
+      }
+      if (result && typeof result === "object") {
+        const record = result as Record<string, unknown>;
+        const errorCode = payload.provider === WebhookProvider.FEISHU ? record.code : record.errcode;
+        if (typeof errorCode === "number" && errorCode !== 0) {
+          throw new Error("Notification provider rejected the request");
+        }
+      }
+    }
   }
 
   private feishuSignature(secret: string) {

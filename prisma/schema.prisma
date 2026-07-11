@@ -971,6 +971,7 @@ model WebhookConfig {
   encryptedEndpoint String?         @map("encrypted_endpoint") @db.Text
   encryptedSecret   String?         @map("encrypted_secret") @db.Text
   enabled           Boolean         @default(false)
+  eventTypes        String[]        @default([]) @map("event_types")
   version           Int             @default(1)
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)

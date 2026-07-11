@@ -12,8 +12,8 @@ const supported = new Set<WebhookProvider>([WebhookProvider.FEISHU, WebhookProvi
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService, private readonly crypto: WebhookCryptoService) {}
 
-  private view(channel: { id: string; provider: WebhookProvider; name: string; enabled: boolean; encryptedEndpoint: string | null; encryptedSecret: string | null; version: number; updatedAt: Date }) {
-    return { id: channel.id, provider: channel.provider, name: channel.name, enabled: channel.enabled, endpointConfigured: Boolean(channel.encryptedEndpoint), secretConfigured: Boolean(channel.encryptedSecret), version: channel.version, updatedAt: channel.updatedAt };
+  private view(channel: { id: string; provider: WebhookProvider; name: string; enabled: boolean; eventTypes: string[]; encryptedEndpoint: string | null; encryptedSecret: string | null; version: number; updatedAt: Date }) {
+    return { id: channel.id, provider: channel.provider, name: channel.name, enabled: channel.enabled, eventTypes: channel.eventTypes, endpointConfigured: Boolean(channel.encryptedEndpoint), secretConfigured: Boolean(channel.encryptedSecret), version: channel.version, updatedAt: channel.updatedAt };
   }
 
   async list(projectSpaceId: string) {
@@ -33,9 +33,9 @@ export class NotificationsService {
         ...(dto.secret !== undefined ? { encryptedSecret: dto.secret ? this.crypto.encrypt(dto.secret) : null } : {}),
       };
       const channel = current
-        ? await tx.webhookConfig.update({ where: { id: current.id }, data: { enabled: dto.enabled, ...credentials, version: { increment: 1 } } })
-        : await tx.webhookConfig.create({ data: { organizationId, projectSpaceId, provider, name: dto.name, enabled: dto.enabled, ...credentials } });
-      await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId, action: "notification.channel.update", resourceType: "WebhookConfig", resourceId: channel.id, metadata: { provider, name: dto.name, enabled: dto.enabled, endpointChanged: dto.endpoint !== undefined, secretChanged: dto.secret !== undefined } } });
+        ? await tx.webhookConfig.update({ where: { id: current.id }, data: { enabled: dto.enabled, eventTypes: dto.eventTypes, ...credentials, version: { increment: 1 } } })
+        : await tx.webhookConfig.create({ data: { organizationId, projectSpaceId, provider, name: dto.name, enabled: dto.enabled, eventTypes: dto.eventTypes, ...credentials } });
+      await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId, action: "notification.channel.update", resourceType: "WebhookConfig", resourceId: channel.id, metadata: { provider, name: dto.name, enabled: dto.enabled, eventTypes: dto.eventTypes, endpointChanged: dto.endpoint !== undefined, secretChanged: dto.secret !== undefined } } });
       return this.view(channel);
     });
   }
@@ -45,7 +45,7 @@ export class NotificationsService {
     const channel = await this.prisma.webhookConfig.findFirst({ where: { organizationId, projectSpaceId, provider: dto.provider, enabled: true }, select: { id: true } });
     if (!channel) throw new NotFoundException("Enabled notification channel not found");
     const aggregateId = dto.dedupeKey
-      ? createHash("sha256").update(`${organizationId}:${projectSpaceId}:${dto.provider}:${dto.dedupeKey}`).digest("hex")
+      ? createHash("sha256").update(JSON.stringify([organizationId, projectSpaceId, dto.provider, dto.dedupeKey, dto.title, dto.body ?? null, dto.link ?? null])).digest("hex")
       : randomUUID();
     return this.prisma.$transaction(async (tx) => {
       if (dto.dedupeKey) {

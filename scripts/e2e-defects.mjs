@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 
 const apiBase = process.env.E2E_API_BASE ?? "http://127.0.0.1:3001/api/v1";
-const identifier = process.env.E2E_IDENTIFIER ?? "admin@example.com";
+const identifier = process.env.E2E_IDENTIFIER;
 const password = process.env.E2E_PASSWORD;
-const organizationSlug = process.env.E2E_ORGANIZATION_SLUG ?? "veritab-demo";
-const projectSpaceKey = process.env.E2E_PROJECT_SPACE_KEY ?? "E2E";
+const organizationSlug = process.env.E2E_ORGANIZATION_SLUG;
+const projectSpaceKey = process.env.E2E_PROJECT_SPACE_KEY;
 
-if (!password) {
-  throw new Error("E2E_PASSWORD is required");
+if (!identifier || !password || !organizationSlug || !projectSpaceKey) {
+  throw new Error("E2E_IDENTIFIER, E2E_PASSWORD, E2E_ORGANIZATION_SLUG and E2E_PROJECT_SPACE_KEY are required");
 }
 
 let accessToken;

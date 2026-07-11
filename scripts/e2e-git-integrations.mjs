@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 
 const apiBase = process.env.E2E_API_BASE ?? "http://127.0.0.1:3001/api/v1";
+const identifier = process.env.E2E_IDENTIFIER;
 const password = process.env.E2E_PASSWORD;
-if (!password) throw new Error("E2E_PASSWORD is required");
+const organizationSlug = process.env.E2E_ORGANIZATION_SLUG;
+const projectSpaceKey = process.env.E2E_PROJECT_SPACE_KEY;
+if (!identifier || !password || !organizationSlug || !projectSpaceKey) throw new Error("E2E_IDENTIFIER, E2E_PASSWORD, E2E_ORGANIZATION_SLUG and E2E_PROJECT_SPACE_KEY are required");
 let token;
 
 async function request(path, options = {}, expected = [200]) {
@@ -16,12 +19,12 @@ async function request(path, options = {}, expected = [200]) {
   return { status: response.status, body };
 }
 
-const login = await request("/auth/login", { method: "POST", body: JSON.stringify({ identifier: "admin@example.com", password }) });
+const login = await request("/auth/login", { method: "POST", body: JSON.stringify({ identifier, password }) });
 token = login.body.accessToken;
 const organizations = (await request("/organizations")).body;
-const organizationId = organizations.find((item) => item.slug === "veritab-demo").id;
+const organizationId = organizations.find((item) => item.slug === organizationSlug).id;
 const spaces = (await request(`/organizations/${organizationId}/spaces`)).body;
-const projectSpaceId = spaces.find((item) => item.key === "E2E").id;
+const projectSpaceId = spaces.find((item) => item.key === projectSpaceKey).id;
 const base = `/organizations/${organizationId}/spaces/${projectSpaceId}`;
 const unique = Date.now();
 const repositoryKey = `e2e/runtime-${unique}`;

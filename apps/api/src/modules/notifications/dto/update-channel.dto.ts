@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsBoolean, IsInt, IsOptional, IsString, IsUrl, Length, MaxLength, Min } from "class-validator";
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUrl, Length, MaxLength, Min } from "class-validator";
+
+export const NOTIFICATION_EVENT_TYPES = [
+  "RequirementCreated", "RequirementUpdated", "RequirementStatusChanged", "RequirementDeleted",
+  "DefectCreated", "DefectUpdated", "DefectStatusChanged", "DefectCommentCreated", "DefectReplyCreated", "DefectDeleted",
+  "TestCaseCreated", "TestCaseUpdated", "TestCaseExecuted", "TestCaseDeleted",
+] as const;
 
 export class UpdateChannelDto {
   @ApiProperty({ minimum: 0 })
@@ -27,4 +33,11 @@ export class UpdateChannelDto {
   @ApiProperty()
   @IsBoolean()
   enabled!: boolean;
+
+  @ApiProperty({ enum: NOTIFICATION_EVENT_TYPES, isArray: true })
+  @IsArray()
+  @ArrayMaxSize(NOTIFICATION_EVENT_TYPES.length)
+  @ArrayUnique()
+  @IsIn(NOTIFICATION_EVENT_TYPES, { each: true })
+  eventTypes!: string[];
 }
