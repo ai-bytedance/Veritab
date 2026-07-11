@@ -4,4 +4,6 @@
 
 渠道配置由 `GET/PUT /notifications/channels/:provider` 管理。Webhook HTTPS 地址和签名密钥使用 `WEBHOOK_ENCRYPTION_KEY`（Base64 编码的 32 字节 AES key）进行 AES-256-GCM 加密；读取 API 只返回是否已配置，永不返回密文或明文。
 
-当前提交覆盖安全配置和可靠入队边界。实际外部投递 Worker、指数退避、死信管理将在独立 Worker 进程中实现；在 Worker 上线前，系统不会谎报外部送达成功。
+独立 Worker 使用 `npm run start:worker --workspace=@veritab/api` 启动。多个实例通过 PostgreSQL `FOR UPDATE SKIP LOCKED` 抢占任务，单次租约 60 秒；失败按 30 秒起步指数退避，最长一小时，第 8 次失败进入死信。
+
+管理员可以读取最近 100 条通知死信，并通过 `POST /notifications/dead-letters/:eventId/replay` 重放。重放操作会写审计日志。

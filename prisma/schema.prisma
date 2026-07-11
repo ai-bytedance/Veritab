@@ -975,7 +975,12 @@ model OutboxEvent {
   occurredAt    DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(3)
   processedAt   DateTime? @map("processed_at") @db.Timestamptz(3)
   attempts      Int       @default(0)
+  nextAttemptAt DateTime   @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lockedUntil   DateTime?  @map("locked_until") @db.Timestamptz(3)
+  lockedBy      String?    @map("locked_by") @db.VarChar(120)
+  lastError     String?    @map("last_error") @db.VarChar(1000)
+  deadLetteredAt DateTime? @map("dead_lettered_at") @db.Timestamptz(3)
 
-  @@index([processedAt, occurredAt])
+  @@index([processedAt, deadLetteredAt, nextAttemptAt, occurredAt])
   @@map("outbox_events")
 }

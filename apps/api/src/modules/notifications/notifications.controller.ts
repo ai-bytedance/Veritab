@@ -43,4 +43,21 @@ export class NotificationsController {
   ) {
     return this.notifications.enqueue(organizationId, projectSpaceId, actorId, dto);
   }
+
+  @Get("dead-letters")
+  @RequirePermissions("space.manage")
+  listDeadLetters(@Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string) {
+    return this.notifications.listDeadLetters(projectSpaceId);
+  }
+
+  @Post("dead-letters/:eventId/replay")
+  @RequirePermissions("space.manage")
+  replay(
+    @Param("organizationId", ParseUUIDPipe) organizationId: string,
+    @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
+    @CurrentUser("userId") actorId: string,
+  ) {
+    return this.notifications.replay(organizationId, projectSpaceId, actorId, eventId);
+  }
 }

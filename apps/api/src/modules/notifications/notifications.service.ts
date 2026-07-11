@@ -64,4 +64,23 @@ export class NotificationsService {
       return { id: event.id, acceptedAt: event.occurredAt, duplicate: false };
     });
   }
+
+  listDeadLetters(projectSpaceId: string) {
+    return this.prisma.outboxEvent.findMany({
+      where: { eventType: "NotificationRequested", deadLetteredAt: { not: null }, payload: { path: ["projectSpaceId"], equals: projectSpaceId } },
+      select: { id: true, attempts: true, occurredAt: true, deadLetteredAt: true, lastError: true },
+      orderBy: { deadLetteredAt: "desc" },
+      take: 100,
+    });
+  }
+
+  async replay(organizationId: string, projectSpaceId: string, actorId: string, eventId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const event = await tx.outboxEvent.findFirst({ where: { id: eventId, eventType: "NotificationRequested", deadLetteredAt: { not: null }, payload: { path: ["projectSpaceId"], equals: projectSpaceId } } });
+      if (!event) throw new NotFoundException("Dead-letter notification not found");
+      await tx.outboxEvent.update({ where: { id: event.id }, data: { attempts: 0, nextAttemptAt: new Date(), lockedBy: null, lockedUntil: null, lastError: null, deadLetteredAt: null } });
+      await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId, action: "notification.replay", resourceType: "OutboxEvent", resourceId: event.id } });
+      return { id: event.id, replayed: true };
+    });
+  }
 }
