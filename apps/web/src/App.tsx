@@ -20,7 +20,8 @@ import { Sparkles, HelpCircle, BookmarkCheck, AlertOctagon, FolderGit2, FileChec
 import { apiRequest, authApi } from "./api/httpClient";
 import { RequirementApiScope } from "./features/requirements/api/types";
 import { useGitIntegrations } from "./features/git-integrations/api/useGitIntegrations";
-import FirstRunSetup from "./components/FirstRunSetup";
+import OrganizationSetup from "./components/OrganizationSetup";
+import ProjectSpaceSetup from "./components/ProjectSpaceSetup";
 
 const ProjectSpace = lazy(() => import("./components/ProjectSpace"));
 const RequirementsBoard = lazy(() => import("./components/RequirementsBoard"));
@@ -45,6 +46,7 @@ export default function App() {
         ? { organizationId: linkedOrganizationId, projectSpaceId: linkedProjectSpaceId }
         : undefined;
   const [requirementApiScope, setRequirementApiScope] = useState<RequirementApiScope | undefined>(configuredApiScope);
+  const [organizationId, setOrganizationId] = useState<string | undefined>(configuredApiScope?.organizationId);
   const gitIntegration = useGitIntegrations(requirementApiScope);
   // Server-backed view state. PostgreSQL remains the sole business source of truth.
   const [projects, setProjects] = useState<Project[]>([]);
@@ -121,6 +123,7 @@ export default function App() {
       .then(async (organizations) => {
         const organization = organizations[0];
         if (!organization) return undefined;
+        setOrganizationId(organization.id);
         const spaces = await apiRequest<Array<{ id: string }>>(`/organizations/${organization.id}/spaces`);
         return spaces[0] ? { organizationId: organization.id, projectSpaceId: spaces[0].id } : undefined;
       })
@@ -515,8 +518,36 @@ export default function App() {
                 />
               )}
             </div>
+          ) : currentUser.id ? (
+            activeTab === ProjectTab.CONFIG ? (
+              organizationId ? (
+                <section className="mx-auto w-full max-w-3xl space-y-5 text-left">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">组织已就绪</p>
+                    <h2 className="mt-2 text-xl font-black text-slate-900">组织基础配置已完成</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">成员、权限和业务设置将在创建项目空间后开放。请前往“概览”创建第一个项目空间。</p>
+                  </div>
+                  <button onClick={() => setActiveTab(ProjectTab.OVERVIEW)} className="rounded-xl bg-slate-900 px-5 py-3 text-xs font-black text-white">前往项目空间</button>
+                </section>
+              ) : (
+                <OrganizationSetup onCreated={(organization) => setOrganizationId(organization.id)} />
+              )
+            ) : organizationId && activeTab === ProjectTab.OVERVIEW ? (
+              <ProjectSpaceSetup organizationId={organizationId} onCreated={setRequirementApiScope} />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <BookmarkCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-md font-bold text-slate-800">尚未创建项目空间</h2>
+                  <p className="mt-1 text-xs text-slate-400">{organizationId ? "请先在概览中创建项目空间。" : "请先在系统配置中创建组织。"}</p>
+                </div>
+                <button onClick={() => setActiveTab(organizationId ? ProjectTab.OVERVIEW : ProjectTab.CONFIG)} className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black text-white">{organizationId ? "前往概览" : "前往系统配置"}</button>
+              </div>
+            )
           ) : (
-            currentUser.id ? <FirstRunSetup onReady={setRequirementApiScope} /> : <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+            <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 animate-bounce">
                 <BookmarkCheck className="h-6 w-6" />
               </div>

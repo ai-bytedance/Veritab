@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { createHash, randomBytes } from "node:crypto";
 import { MembershipStatus, ScopeType, SubjectType } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
@@ -28,12 +29,12 @@ export class OrganizationsService {
   }
 
   async create(userId: string, dto: CreateOrganizationDto) {
-    const existing = await this.prisma.organization.findUnique({ where: { slug: dto.slug } });
-    if (existing) throw new ConflictException("Organization slug is already in use");
     const adminRole = await this.prisma.role.findFirst({ where: { code: "org_admin", organizationId: null } });
     if (!adminRole) throw new InternalServerErrorException("System roles have not been seeded");
     return this.prisma.$transaction(async (tx) => {
-      const organization = await tx.organization.create({ data: dto });
+      const organization = await tx.organization.create({
+        data: { name: dto.name.trim(), slug: `org-${randomBytes(6).toString("hex")}` },
+      });
       await tx.organizationMember.create({ data: { organizationId: organization.id, userId } });
       await tx.roleBinding.create({
         data: {
@@ -237,4 +238,3 @@ export class OrganizationsService {
     });
   }
 }
-import { createHash, randomBytes } from "node:crypto";
