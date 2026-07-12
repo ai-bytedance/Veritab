@@ -129,7 +129,7 @@ export default function TestCaseDetailPanel({
     detailsText: string;
     runSnapshot: any;
   } | null>(null);
-  const [selectedChannels, setSelectedChannels] = useState<string[]>(["feishu", "system"]);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(["feishu"]);
   const [notifyContent, setNotifyContent] = useState("");
 
   const triggerToast = (msg: string, type: "success" | "warning" = "success") => {
@@ -425,7 +425,8 @@ ${details.join("\n")}`;
         };
         onTriggerWebhook(channel, payload);
       });
-      triggerToast(`🎉 结果已成功归档，并同步向 [${selectedChannels.map(c => c === 'feishu' ? '飞书' : c === 'email' ? '邮件' : '系统站内信').join(', ')}] 发送通知提示！`, "success");
+      const channelNames: Record<string, string> = { feishu: "飞书", wechat: "企业微信", dingtalk: "钉钉" };
+      triggerToast(`🎉 结果已成功归档，并同步向 [${selectedChannels.map((channel) => channelNames[channel]).join(", ")}] 发送通知提示！`, "success");
     } else {
       triggerToast(`🎉 回归测试结果已成功归档并锁入历史记录！`, "success");
     }
@@ -834,8 +835,8 @@ ${details.join("\n")}`;
                 <div className="flex flex-wrap items-center gap-3 select-none">
                   {[
                     { id: "feishu", label: "💬 飞书协作机器人", color: "text-blue-600" },
-                    { id: "email", label: "📧 团队群发邮件", color: "text-indigo-600" },
-                    { id: "system", label: "🔔 系统消息中心", color: "text-amber-600" }
+                    { id: "wechat", label: "💬 企业微信机器人", color: "text-emerald-600" },
+                    { id: "dingtalk", label: "💬 钉钉协作机器人", color: "text-indigo-600" }
                   ].map(channel => {
                     const checked = selectedChannels.includes(channel.id);
                     return (

@@ -46,6 +46,7 @@ async function main(): Promise<void> {
         username,
         email,
         displayName,
+        isSystemAdmin: true,
         passwordHash: await argon2.hash(password, { type: argon2.argon2id }),
         status: UserStatus.ACTIVE,
       },

@@ -143,9 +143,25 @@ export class NotificationWorkerService {
       resource = await this.prisma.testCase.findUnique({ where: { id: event.aggregateId }, select: { displayNo: true, title: true } });
     }
     const action = labels[event.eventType] ?? event.eventType;
+    const payload = event.payload && !Array.isArray(event.payload) && typeof event.payload === "object"
+      ? event.payload as Record<string, Prisma.JsonValue>
+      : {};
+    const changes = payload.changes && !Array.isArray(payload.changes) && typeof payload.changes === "object"
+      ? payload.changes as Record<string, Prisma.JsonValue>
+      : {};
+    const transition = typeof changes.from === "string" && typeof changes.to === "string"
+      ? `**状态流转：** ${changes.from} → ${changes.to}`
+      : typeof changes.status === "string"
+        ? `**执行结论：** ${changes.status}`
+        : null;
     return {
       title: `[Veritab] ${action}`,
-      body: resource ? `${resource.displayNo} ${resource.title}` : `对象 ${event.aggregateId}`,
+      body: [
+        resource ? `**对象：** ${resource.displayNo} ${resource.title}` : `**对象 ID：** ${event.aggregateId}`,
+        `**事件：** ${action}`,
+        transition,
+        `**时间：** ${new Date().toISOString()}`,
+      ].filter(Boolean).join("\n\n"),
     };
   }
 
@@ -177,10 +193,24 @@ export class NotificationWorkerService {
         const separator = url.includes("?") ? "&" : "?";
         url = `${url}${separator}timestamp=${timestamp}&sign=${encodeURIComponent(sign)}`;
       }
-      body = { msgtype: "text", text: { content } };
+      body = { msgtype: "markdown", markdown: { title: payload.title, text: [payload.title, payload.body, payload.link ? `[查看详情](${payload.link})` : null].filter(Boolean).join("\n\n") } };
     } else if (payload.provider === WebhookProvider.FEISHU) {
       const signature = secret ? this.feishuSignature(secret) : {};
-      body = { ...signature, msg_type: "text", content: { text: content } };
+      body = {
+        ...signature,
+        msg_type: "interactive",
+        card: {
+          config: { wide_screen_mode: true, enable_forward: true },
+          header: { template: this.cardTemplate(payload.title), title: { tag: "plain_text", content: payload.title } },
+          elements: [
+            { tag: "markdown", content: payload.body || "Veritab 研发协作事件" },
+            ...(payload.link ? [{ tag: "action", actions: [{ tag: "button", type: "primary", text: { tag: "plain_text", content: "查看详情" }, url: payload.link }] }] : []),
+            { tag: "note", elements: [{ tag: "plain_text", content: "由 Veritab 敏捷研发管理平台发送" }] },
+          ],
+        },
+      };
+    } else if (payload.provider === WebhookProvider.WECOM) {
+      body = { msgtype: "markdown", markdown: { content: [`**${payload.title}**`, payload.body, payload.link ? `[查看详情](${payload.link})` : null].filter(Boolean).join("\n\n") } };
     } else {
       body = { msgtype: "text", text: { content } };
     }
@@ -213,5 +243,12 @@ export class NotificationWorkerService {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const sign = createHmac("sha256", `${timestamp}\n${secret}`).update("").digest("base64");
     return { timestamp, sign };
+  }
+
+  private cardTemplate(title: string): "blue" | "green" | "orange" | "red" {
+    if (/缺陷|失败|删除/.test(title)) return "red";
+    if (/完成|通过|解决|关闭/.test(title)) return "green";
+    if (/状态|执行|更新/.test(title)) return "orange";
+    return "blue";
   }
 }

@@ -6,7 +6,7 @@ import { RequestNotificationDto } from "./dto/request-notification.dto";
 import { UpdateChannelDto } from "./dto/update-channel.dto";
 import { WebhookCryptoService } from "./webhook-crypto.service";
 
-const supported = new Set<WebhookProvider>([WebhookProvider.FEISHU, WebhookProvider.WECOM, WebhookProvider.DINGTALK, WebhookProvider.CUSTOM]);
+const supported = new Set<WebhookProvider>([WebhookProvider.FEISHU, WebhookProvider.WECOM, WebhookProvider.DINGTALK]);
 
 @Injectable()
 export class NotificationsService {
@@ -23,6 +23,7 @@ export class NotificationsService {
 
   async update(organizationId: string, projectSpaceId: string, actorId: string, provider: WebhookProvider, dto: UpdateChannelDto) {
     if (!supported.has(provider)) throw new BadRequestException("Unsupported notification provider");
+    if (dto.endpoint) this.assertOfficialEndpoint(provider, dto.endpoint);
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.webhookConfig.findFirst({ where: { organizationId, projectSpaceId, provider, name: dto.name } });
       if ((current?.version ?? 0) !== dto.version) throw new ConflictException("Notification channel was modified by another user");
@@ -38,6 +39,22 @@ export class NotificationsService {
       await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId, action: "notification.channel.update", resourceType: "WebhookConfig", resourceId: channel.id, metadata: { provider, name: dto.name, enabled: dto.enabled, eventTypes: dto.eventTypes, endpointChanged: dto.endpoint !== undefined, secretChanged: dto.secret !== undefined } } });
       return this.view(channel);
     });
+  }
+
+  private assertOfficialEndpoint(provider: WebhookProvider, endpoint: string): void {
+    const url = new URL(endpoint);
+    if (url.username || url.password || url.hash || (url.port && url.port !== "443")) {
+      throw new BadRequestException("Notification endpoint contains unsupported URL components");
+    }
+    const rules: Partial<Record<WebhookProvider, { hosts: string[]; pathPrefix: string }>> = {
+      [WebhookProvider.FEISHU]: { hosts: ["open.feishu.cn", "open.larksuite.com"], pathPrefix: "/open-apis/bot/v2/hook/" },
+      [WebhookProvider.WECOM]: { hosts: ["qyapi.weixin.qq.com"], pathPrefix: "/cgi-bin/webhook/send" },
+      [WebhookProvider.DINGTALK]: { hosts: ["oapi.dingtalk.com"], pathPrefix: "/robot/send" },
+    };
+    const rule = rules[provider];
+    if (!rule || !rule.hosts.includes(url.hostname.toLowerCase()) || !url.pathname.startsWith(rule.pathPrefix)) {
+      throw new BadRequestException("Webhook endpoint is not an official provider robot URL");
+    }
   }
 
   async enqueue(organizationId: string, projectSpaceId: string, actorId: string, dto: RequestNotificationDto) {

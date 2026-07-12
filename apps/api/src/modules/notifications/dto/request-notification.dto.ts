@@ -3,7 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsEnum, IsOptional, IsString, IsUrl, Length, MaxLength } from "class-validator";
 
 export class RequestNotificationDto {
-  @ApiProperty({ enum: ["FEISHU", "WECOM", "DINGTALK", "CUSTOM"] })
+  @ApiProperty({ enum: ["FEISHU", "WECOM", "DINGTALK"] })
   @IsEnum(WebhookProvider)
   provider!: WebhookProvider;
 

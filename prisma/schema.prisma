@@ -113,29 +113,10 @@ enum TestResultStatus {
   BLOCKED
 }
 
-enum TestNodeType {
-  ROOT
-  SUITE
-  CASE
-  STEP
-  NOTE
-}
-
-enum NotificationStatus {
-  PENDING
-  SENT
-  FAILED
-  READ
-}
-
 enum WebhookProvider {
   FEISHU
   WECOM
   DINGTALK
-  GITHUB
-  GITLAB
-  GITEE
-  CUSTOM
 }
 
 enum FileObjectStatus {
@@ -168,6 +149,7 @@ model User {
   username             String                   @unique @db.VarChar(64)
   email                String                   @unique @db.VarChar(320)
   displayName          String                   @map("display_name") @db.VarChar(120)
+  isSystemAdmin        Boolean                  @default(false) @map("is_system_admin")
   passwordHash         String?                  @map("password_hash") @db.VarChar(255)
   status               UserStatus               @default(ACTIVE)
   tokenVersion         Int                      @default(0) @map("token_version")
@@ -186,7 +168,6 @@ model User {
   assignedDefects      Defect[]                 @relation("DefectAssignee")
   createdTestCases     TestCase[]               @relation("TestCaseCreator")
   assignedTestCases    TestCase[]               @relation("TestCaseAssignee")
-  notifications        Notification[]
   auditLogs            AuditLog[]
   requirementHistory   RequirementHistory[]
   defectHistory        DefectHistory[]
@@ -269,11 +250,9 @@ model ProjectSpace {
   testCases       TestCase[]
   testCaseFolders TestCaseFolder[]
   testCaseCatalog TestCaseCatalog?
-  testNodes       TestCaseNode[]
   codeChanges     CodeChange[]
   gitRepositories GitRepository[]
   pullRequests    PullRequest[]
-  notifications   Notification[]
   webhooks        WebhookConfig[]
   auditLogs       AuditLog[]
   counter         ProjectCounter?
@@ -698,7 +677,6 @@ model TestCase {
   folder          TestCaseFolder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
   creator         User                     @relation("TestCaseCreator", fields: [creatorId], references: [id])
   assignee        User?                    @relation("TestCaseAssignee", fields: [assigneeId], references: [id])
-  nodes           TestCaseNode[]
   defectLinks     DefectTestCaseLink[]
   executions      TestCaseExecution[]
   history         TestCaseHistory[]
@@ -777,28 +755,6 @@ model TestCaseHistory {
 
   @@index([testCaseId, createdAt(sort: Desc)])
   @@map("test_case_history")
-}
-
-model TestCaseNode {
-  id             String         @id @default(uuid()) @db.Uuid
-  projectSpaceId String         @map("project_space_id") @db.Uuid
-  testCaseId     String?        @map("test_case_id") @db.Uuid
-  parentId       String?        @map("parent_id") @db.Uuid
-  type           TestNodeType
-  title          String         @db.VarChar(500)
-  content        Json?
-  position       Int            @default(0)
-  version        Int            @default(1)
-  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  projectSpace   ProjectSpace   @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
-  testCase       TestCase?      @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
-  parent         TestCaseNode?  @relation("TestNodeTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children       TestCaseNode[] @relation("TestNodeTree")
-
-  @@index([projectSpaceId, parentId, position])
-  @@index([testCaseId])
-  @@map("test_case_nodes")
 }
 
 model CodeChange {
@@ -942,25 +898,6 @@ model GitWebhookEvent {
   @@unique([repositoryId, deliveryId])
   @@index([receivedAt(sort: Desc)])
   @@map("git_webhook_events")
-}
-
-model Notification {
-  id             String             @id @default(uuid()) @db.Uuid
-  userId         String             @map("user_id") @db.Uuid
-  projectSpaceId String?            @map("project_space_id") @db.Uuid
-  type           String             @db.VarChar(100)
-  title          String             @db.VarChar(300)
-  body           String?            @db.Text
-  status         NotificationStatus @default(PENDING)
-  dedupeKey      String?            @map("dedupe_key") @db.VarChar(255)
-  readAt         DateTime?          @map("read_at") @db.Timestamptz(3)
-  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectSpace   ProjectSpace?      @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, dedupeKey])
-  @@index([userId, status, createdAt(sort: Desc)])
-  @@map("notifications")
 }
 
 model WebhookConfig {

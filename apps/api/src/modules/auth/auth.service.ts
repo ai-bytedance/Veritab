@@ -156,7 +156,7 @@ export class AuthService {
   }
 
   private async createSession(
-    user: { id: string; username: string; email: string; displayName: string; tokenVersion: number },
+    user: { id: string; username: string; email: string; displayName: string; tokenVersion: number; isSystemAdmin: boolean },
     familyId: string,
     metadata: ClientMetadata,
   ): Promise<AuthResult> {
@@ -217,7 +217,10 @@ export class AuthService {
         username: user.username,
         email: user.email,
         displayName: user.displayName,
-        roleCodes: [...new Set(roleBindings.map((binding) => binding.role.code))],
+        roleCodes: [...new Set([
+          ...(user.isSystemAdmin ? ["system_admin"] : []),
+          ...roleBindings.map((binding) => binding.role.code),
+        ])],
       },
     };
   }

@@ -80,7 +80,7 @@ export default function App() {
           email: result.user.email,
           group: "server-managed",
           status: "active",
-          role: result.user.roleCodes.some((code) => code === "org_admin" || code === "space_admin") ? "admin" : "member",
+          role: result.user.roleCodes.some((code) => code === "system_admin" || code === "org_admin" || code === "space_admin") ? "admin" : "member",
         });
       })
       .catch(() => {
@@ -234,11 +234,10 @@ export default function App() {
 
   const handleTriggerWebhook = async (provider: string, payload: Record<string, unknown>) => {
     if (!requirementApiScope) throw new Error("当前空间上下文不可用。");
-    const providers: Record<string, "FEISHU" | "WECOM" | "DINGTALK" | "CUSTOM"> = {
+    const providers: Record<string, "FEISHU" | "WECOM" | "DINGTALK"> = {
       feishu: "FEISHU",
       wechat: "WECOM",
       dingtalk: "DINGTALK",
-      custom: "CUSTOM",
     };
     const mappedProvider = providers[provider];
     if (!mappedProvider) throw new Error("不支持的通知渠道。");

@@ -35,7 +35,7 @@ export default function LoginModal({ isOpen, onClose, onLogin, isForced = false 
         email: result.user.email,
         group: "server-managed",
         status: "active",
-        role: result.user.roleCodes.some((code) => code === "org_admin" || code === "space_admin") ? "admin" : "member",
+        role: result.user.roleCodes.some((code) => code === "system_admin" || code === "org_admin" || code === "space_admin") ? "admin" : "member",
       });
       setPassword("");
       onClose();

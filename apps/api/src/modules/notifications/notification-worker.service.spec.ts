@@ -32,8 +32,13 @@ describe("NotificationWorkerService", () => {
   });
 
   it("marks a successfully delivered event as processed", async () => {
-    jest.spyOn(global, "fetch").mockResolvedValue(new Response("ok", { status: 200 }));
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue(new Response("ok", { status: 200 }));
     await expect(worker.processOne()).resolves.toBe(true);
+    const request = fetchSpy.mock.calls[0]?.[1];
+    expect(JSON.parse(String(request?.body))).toEqual(expect.objectContaining({
+      msg_type: "interactive",
+      card: expect.objectContaining({ header: expect.any(Object), elements: expect.any(Array) }),
+    }));
     expect(prisma.outboxEvent.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ processedAt: expect.any(Date), lastError: null }),
     }));
@@ -89,7 +94,7 @@ describe("NotificationWorkerService", () => {
     expect(transaction.outboxEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         eventType: "NotificationRequested",
-        payload: expect.objectContaining({ title: "[Veritab] 需求已创建", body: "VT-REQ-000001 登录能力" }),
+        payload: expect.objectContaining({ title: "[Veritab] 需求已创建", body: expect.stringContaining("VT-REQ-000001 登录能力") }),
       }),
     }));
     expect(transaction.outboxEvent.updateMany).toHaveBeenCalledWith(expect.objectContaining({
