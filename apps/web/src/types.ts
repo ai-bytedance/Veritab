@@ -75,6 +75,7 @@ export enum TestCaseStatus {
 
 export interface Project {
   id: string;
+  key: string;
   name: string;
   description: string;
   repoType: "github" | "gitlab" | "none";

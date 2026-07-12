@@ -18,10 +18,10 @@ import {
   Eye,
   EyeOff,
   LayoutGrid,
-  Info,
   CheckCircle2,
   AlertCircle,
   Sparkles,
+  Building2,
 } from "lucide-react";
 
 import PromptTemplateSection from "./PromptTemplateSection";
@@ -29,23 +29,30 @@ import RemoteMemberManagement from "./RemoteMemberManagement";
 import { MemberApiScope } from "../features/members/api/types";
 import RemoteNotificationChannels from "./RemoteNotificationChannels";
 import { RequirementApiScope } from "../features/requirements/api/types";
+import OrganizationSpaceSettings, { OrganizationSummary } from "./OrganizationSpaceSettings";
 
 interface SystemConfigPanelProps {
   systemConfig: SystemConfig;
   onUpdateConfig: (cfg: SystemConfig) => Promise<void>;
-  projects: Project[];
   currentUser: SystemUser;
   memberApiScope: MemberApiScope;
   notificationApiScope: RequirementApiScope;
+  organization: OrganizationSummary;
+  activeProject: Project;
+  onUpdateOrganization: (name: string) => Promise<void>;
+  onUpdateProject: (input: { name: string; description: string }) => Promise<void>;
 }
 
 export default function SystemConfigPanel({
   systemConfig,
   onUpdateConfig,
-  projects,
   currentUser,
   memberApiScope,
   notificationApiScope,
+  organization,
+  activeProject,
+  onUpdateOrganization,
+  onUpdateProject,
 }: SystemConfigPanelProps) {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -59,15 +66,6 @@ export default function SystemConfigPanel({
   // Tab State
   const [settingsTab, setSettingsTab] = useState<"project" | "prompt" | "navigation" | "notifications" | "users">("project");
 
-  // Project Brand Info states
-  const [projectName, setProjectName] = useState(systemConfig.projectName || "Veritab");
-  const [projectDesc, setProjectDesc] = useState(systemConfig.projectDesc || "AI 协同质控大脑");
-
-  React.useEffect(() => {
-    setProjectName(systemConfig.projectName || "Veritab");
-    setProjectDesc(systemConfig.projectDesc || "AI 协同质控大脑");
-  }, [systemConfig.projectName, systemConfig.projectDesc]);
-
   const [visibleMenus, setVisibleMenus] = useState<string[]>(() => {
     const list = systemConfig.visibleMenus || ["overview", "requirement", "defect", "testcase", "code_changes", "metrics", "config"];
     if (!list.includes("code_changes")) {
@@ -77,8 +75,6 @@ export default function SystemConfigPanel({
   });
 
   React.useEffect(() => {
-    setProjectName(systemConfig.projectName || "Veritab");
-    setProjectDesc(systemConfig.projectDesc || "AI 协同质控大脑");
     if (systemConfig.visibleMenus) {
       const list = systemConfig.visibleMenus;
       if (!list.includes("code_changes")) {
@@ -130,23 +126,6 @@ export default function SystemConfigPanel({
     }
   };
 
-  const handleSaveProjectInfo = async () => {
-    if (!isAdmin) {
-      showToast("⚠️ 保存失败：只有管理员才能更新项目基本信息。", "error");
-      return;
-    }
-    if (!projectName.trim()) {
-      showToast("⚠️ 保存失败：项目名称不能为空！", "error");
-      return;
-    }
-    try {
-      await onUpdateConfig({ ...systemConfig, projectName: projectName.trim(), projectDesc: projectDesc.trim() });
-      showToast("🟢 平台基本信息已保存。", "success");
-    } catch (reason) {
-      showToast(reason instanceof Error ? reason.message : "平台信息保存失败。", "error");
-    }
-  };
-
   const isAdmin = currentUser.role === "admin";
 
   return (
@@ -185,8 +164,8 @@ export default function SystemConfigPanel({
               : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/40"
           }`}
         >
-          <Info className="h-4 w-4" />
-          <span>项目设置</span>
+          <Building2 className="h-4 w-4" />
+          <span>组织与空间</span>
         </button>
         <button
           onClick={() => setSettingsTab("prompt")}
@@ -233,75 +212,7 @@ export default function SystemConfigPanel({
       </div>
 
       {settingsTab === "project" && (
-        <div className="space-y-6 max-w-4xl animate-fade-in animate-in fade-in duration-200" id="system-config-project-tab">
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4 animate-fade-in">
-            <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
-              <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
-                <Info className="h-4.5 w-4.5" />
-              </span>
-              <div>
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  项目基本信息
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  配置项目名称与描述，更新后同步展示在侧边栏和系统模块中。
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-700 block pl-0.5">
-                    项目名称 <span className="text-rose-500 font-bold">*</span>
-                  </label>
-                  <span className="text-[9px] text-slate-400 font-mono">必填</span>
-                </div>
-                <input
-                  type="text"
-                  disabled={!isAdmin}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-800 placeholder-slate-400 shadow-3xs outline-none transition-all duration-200 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100/50 disabled:bg-slate-50 disabled:text-slate-400"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="请输入项目名称，如：Veritab"
-                />
-                <p className="text-[10px] text-slate-400 pl-0.5 leading-relaxed">
-                  提示：此名称展示在左侧导航栏最上方，支持中文、英文及常用符号。
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-700 block pl-0.5">
-                    项目描述
-                  </label>
-                  <span className="text-[9px] text-slate-400 font-mono">可选</span>
-                </div>
-                <textarea
-                  disabled={!isAdmin}
-                  className="w-full h-24 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-800 placeholder-slate-400 shadow-3xs outline-none transition-all duration-200 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100/50 disabled:bg-slate-50 disabled:text-slate-400 leading-relaxed resize-none"
-                  value={projectDesc}
-                  onChange={(e) => setProjectDesc(e.target.value)}
-                  placeholder="请输入项目描述，如：AI 协同质控大脑"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-50">
-              <span className="text-[10px] text-slate-400 font-medium">
-                {!isAdmin && "只读模式：无权更新此配置。"}
-              </span>
-              <button
-                onClick={handleSaveProjectInfo}
-                disabled={!isAdmin}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-xs font-bold text-white px-5 py-2.5 shadow-sm transition-all active:scale-95 cursor-pointer shrink-0"
-              >
-                <Save className="h-3.5 w-3.5" />
-                <span>保存项目信息</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <OrganizationSpaceSettings organization={organization} project={activeProject} onUpdateOrganization={onUpdateOrganization} onUpdateProject={onUpdateProject} showToast={showToast} />
       )}
 
       {settingsTab === "prompt" && (

@@ -22,6 +22,7 @@ import { RequirementApiScope } from "./features/requirements/api/types";
 import { useGitIntegrations } from "./features/git-integrations/api/useGitIntegrations";
 import OrganizationSetup from "./components/OrganizationSetup";
 import ProjectSpaceSetup from "./components/ProjectSpaceSetup";
+import { OrganizationSummary } from "./components/OrganizationSpaceSettings";
 
 const ProjectSpace = lazy(() => import("./components/ProjectSpace"));
 const RequirementsBoard = lazy(() => import("./components/RequirementsBoard"));
@@ -47,6 +48,7 @@ export default function App() {
         : undefined;
   const [requirementApiScope, setRequirementApiScope] = useState<RequirementApiScope | undefined>(configuredApiScope);
   const [organizationId, setOrganizationId] = useState<string | undefined>(configuredApiScope?.organizationId);
+  const [organization, setOrganization] = useState<OrganizationSummary | undefined>();
   const [organizationResolved, setOrganizationResolved] = useState(Boolean(configuredApiScope));
   const gitIntegration = useGitIntegrations(requirementApiScope);
   // Server-backed view state. PostgreSQL remains the sole business source of truth.
@@ -120,11 +122,12 @@ export default function App() {
   useEffect(() => {
     if (isLoggedOut || requirementApiScope) return;
     let cancelled = false;
-    void apiRequest<Array<{ id: string }>>("/organizations")
+    void apiRequest<OrganizationSummary[]>("/organizations")
       .then(async (organizations) => {
         const organization = organizations[0];
         if (!organization) return undefined;
         setOrganizationId(organization.id);
+        setOrganization(organization);
         const spaces = await apiRequest<Array<{ id: string }>>(`/organizations/${organization.id}/spaces`);
         return spaces[0] ? { organizationId: organization.id, projectSpaceId: spaces[0].id } : undefined;
       })
@@ -148,7 +151,7 @@ export default function App() {
     if (isLoggedOut || !requirementApiScope) return;
     let cancelled = false;
     void Promise.all([
-      apiRequest<{ id: string; name: string; description: string | null; version: number; createdAt: string }>(
+      apiRequest<{ id: string; key: string; name: string; description: string | null; version: number; createdAt: string }>(
         `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
       ),
       apiRequest<{ version: number; brandName: string; brandDescription: string; visibleMenus: string[]; testCasePromptTemplate: string; requirementPromptTemplate: string; defectPromptTemplate: string; reportPromptTemplate: string }>(
@@ -158,6 +161,7 @@ export default function App() {
       if (cancelled) return;
       const project: Project = {
         id: space.id,
+        key: space.key,
         name: space.name,
         description: space.description || "",
         repoType: "none",
@@ -322,6 +326,14 @@ export default function App() {
       description: updated.description || "",
       version: updated.version,
     } : project));
+  };
+  const handleUpdateOrganization = async (name: string) => {
+    if (!organization) throw new Error("当前组织上下文不可用。");
+    const updated = await apiRequest<OrganizationSummary>(`/organizations/${organization.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name, version: organization.version }),
+    });
+    setOrganization(updated);
   };
   const connectedRepository = requirementApiScope ? gitIntegration.repository : undefined;
   const displayedRepositoryType = connectedRepository
@@ -519,10 +531,13 @@ export default function App() {
                 <SystemConfigPanel
                   systemConfig={systemConfig}
                   onUpdateConfig={updateSystemConfig}
-                  projects={projects}
                   currentUser={currentUser}
                   memberApiScope={{ organizationId: requirementApiScope!.organizationId }}
                   notificationApiScope={requirementApiScope}
+                  organization={organization!}
+                  activeProject={activeProject}
+                  onUpdateOrganization={handleUpdateOrganization}
+                  onUpdateProject={handleUpdateActiveProject}
                 />
               )}
             </div>
@@ -538,7 +553,7 @@ export default function App() {
                   <button onClick={() => setActiveTab(ProjectTab.OVERVIEW)} className="rounded-xl bg-slate-900 px-5 py-3 text-xs font-black text-white">前往项目空间</button>
                 </section>
               ) : (
-                <OrganizationSetup onCreated={(organization) => setOrganizationId(organization.id)} />
+                <OrganizationSetup onCreated={(created) => { setOrganizationId(created.id); setOrganization({ ...created, version: 1 }); }} />
               )
             ) : organizationId && activeTab === ProjectTab.OVERVIEW ? (
               <ProjectSpaceSetup organizationId={organizationId} onCreated={setRequirementApiScope} />

@@ -9,6 +9,7 @@ import { UpdateMemberStatusDto } from "./dto/update-member-status.dto";
 import { OrganizationsService } from "./organizations.service";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 import { CreateUserGroupDto } from "./dto/create-user-group.dto";
+import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -27,6 +28,12 @@ export class OrganizationsController {
   @ApiCreatedResponse({ description: "Organization created" })
   create(@CurrentUser("userId") userId: string, @Body() dto: CreateOrganizationDto) {
     return this.organizations.create(userId, dto);
+  }
+
+  @Patch(":organizationId")
+  @RequirePermissions("space.manage")
+  update(@Param("organizationId", ParseUUIDPipe) organizationId: string, @CurrentUser("userId") actorId: string, @Body() dto: UpdateOrganizationDto) {
+    return this.organizations.update(organizationId, actorId, dto);
   }
 
   @Get(":organizationId/settings")

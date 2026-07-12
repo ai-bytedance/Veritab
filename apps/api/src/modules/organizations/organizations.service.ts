@@ -6,6 +6,7 @@ import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { CreateMemberInvitationDto } from "./dto/create-member-invitation.dto";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 import { CreateUserGroupDto } from "./dto/create-user-group.dto";
+import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 
 @Injectable()
 export class OrganizationsService {
@@ -24,7 +25,7 @@ export class OrganizationsService {
   listForUser(userId: string) {
     return this.prisma.organization.findMany({
       where: { members: { some: { userId, status: "ACTIVE" } } },
-      select: { id: true, slug: true, name: true, createdAt: true, updatedAt: true },
+      select: { id: true, slug: true, name: true, version: true, createdAt: true, updatedAt: true },
       orderBy: { name: "asc" },
     });
   }
@@ -55,6 +56,16 @@ export class OrganizationsService {
           resourceId: organization.id,
         },
       });
+      return organization;
+    });
+  }
+
+  async update(organizationId: string, actorId: string, dto: UpdateOrganizationDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const changed = await tx.organization.updateMany({ where: { id: organizationId, version: dto.version }, data: { name: dto.name.trim(), version: { increment: 1 } } });
+      if (!changed.count) throw new ConflictException("Organization was modified by another administrator");
+      const organization = await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { id: true, slug: true, name: true, version: true, createdAt: true, updatedAt: true } });
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "organization.update", resourceType: "Organization", resourceId: organizationId, metadata: { version: organization.version } } });
       return organization;
     });
   }
