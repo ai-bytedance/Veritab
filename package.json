@@ -29,6 +29,7 @@
     "test:e2e:member-invitations": "node scripts/e2e-member-invitations.mjs",
     "prisma:generate": "npm run prisma:generate --workspace=@veritab/api",
     "prisma:validate": "npm run prisma:validate --workspace=@veritab/api",
-    "prisma:bootstrap": "npm run prisma:bootstrap --workspace=@veritab/api"
+    "prisma:bootstrap": "npm run prisma:bootstrap --workspace=@veritab/api",
+    "database:deploy": "npx prisma migrate deploy --schema=prisma/schema.prisma && npm run prisma:seed --workspace=@veritab/api"
   }
 }

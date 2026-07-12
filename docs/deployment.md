@@ -12,7 +12,7 @@ docker compose --env-file .env.production -f compose.production.yaml up -d
 运行约束：
 
 - API/Worker 使用固定非 root UID/GID 10001、只读根文件系统、移除 Linux capabilities，并启用 `no-new-privileges`。
-- 数据库迁移必须成功完成后 API 和 Worker 才会启动。
+- 数据库迁移与幂等系统种子必须成功完成后 API 和 Worker 才会启动。系统种子只维护权限和角色，不创建用户、组织、项目空间或业务数据。
 - API readiness 成功后 Web 才启动。
 - PostgreSQL 和 Redis 不暴露宿主机端口。
 - `.env.production` 禁止提交；生产优先使用 Docker/Kubernetes Secrets 或云 Secret Manager。

@@ -13,7 +13,7 @@ RUN npm run prisma:generate --workspace=@veritab/api && npm run build --workspac
 
 FROM api-build AS migrate
 ENV NODE_ENV=production
-CMD ["npx", "prisma", "migrate", "deploy", "--schema=prisma/schema.prisma"]
+CMD ["npm", "run", "database:deploy"]
 
 FROM api-build AS api-production-dependencies
 RUN npm prune --omit=dev

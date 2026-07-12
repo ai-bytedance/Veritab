@@ -20,6 +20,7 @@ import { Sparkles, HelpCircle, BookmarkCheck, AlertOctagon, FolderGit2, FileChec
 import { apiRequest, authApi } from "./api/httpClient";
 import { RequirementApiScope } from "./features/requirements/api/types";
 import { useGitIntegrations } from "./features/git-integrations/api/useGitIntegrations";
+import FirstRunSetup from "./components/FirstRunSetup";
 
 const ProjectSpace = lazy(() => import("./components/ProjectSpace"));
 const RequirementsBoard = lazy(() => import("./components/RequirementsBoard"));
@@ -507,7 +508,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+            currentUser.id ? <FirstRunSetup onReady={setRequirementApiScope} /> : <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 animate-bounce">
                 <BookmarkCheck className="h-6 w-6" />
               </div>
