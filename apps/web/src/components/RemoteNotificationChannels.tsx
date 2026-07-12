@@ -9,7 +9,7 @@ const eventGroups: ReadonlyArray<{ label: string; events: ReadonlyArray<readonly
   { label: "用例", events: [["TestCaseCreated", "创建"], ["TestCaseUpdated", "更新"], ["TestCaseExecuted", "执行"], ["TestCaseDeleted", "删除"]] },
 ] as const;
 const allEventTypes = eventGroups.flatMap((group) => group.events.map(([eventType]) => eventType));
-interface Channel { id: string; provider: Provider; name: string; enabled: boolean; eventTypes: string[]; endpointConfigured: boolean; secretConfigured: boolean; version: number; }
+interface Channel { id: string; provider: Provider; name: string; enabled: boolean; eventTypes: string[]; endpointConfigured: boolean; endpointPreview: string | null; secretConfigured: boolean; version: number; }
 
 export default function RemoteNotificationChannels({ scope }: { scope: RequirementApiScope }) {
   const [provider, setProvider] = useState<Provider>("FEISHU");
@@ -49,9 +49,10 @@ export default function RemoteNotificationChannels({ scope }: { scope: Requireme
 
   return (
     <form onSubmit={save} className="max-w-4xl space-y-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div><h3 className="text-xs font-black text-slate-800">外部通知渠道</h3><p className="mt-1 text-[11px] text-slate-400">Webhook 地址和签名密钥仅加密存储于服务端，保存后不会返回浏览器。</p></div>
+      <div><h3 className="text-xs font-black text-slate-800">外部通知渠道</h3><p className="mt-1 text-[11px] text-slate-400">Webhook 与签名密钥均加密存储。地址显示安全预览，机器人令牌和签名密钥不会返回浏览器。</p></div>
       <div className="grid grid-cols-3 gap-2">{(["FEISHU", "WECOM", "DINGTALK"] as Provider[]).map((value) => <button type="button" key={value} onClick={() => setProvider(value)} className={`rounded-xl border px-3 py-2 text-xs font-bold ${provider === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500"}`}>{value === "FEISHU" ? "飞书" : value === "WECOM" ? "企业微信" : "钉钉"}</button>)}</div>
       <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">Webhook HTTPS 地址</span><input type="url" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder={current?.endpointConfigured ? "已配置；留空表示保留" : "https://..."} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-indigo-500" /></label>
+      {current?.endpointPreview && <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 font-mono text-[10px] text-emerald-800"><span className="mr-2 font-sans font-bold">当前地址</span>{current.endpointPreview}</div>}
       <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">签名密钥</span><input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder={current?.secretConfigured ? "已配置；留空表示保留" : "可选"} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-indigo-500" /></label>
       <label className="flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />启用该渠道</label>
       <fieldset className="space-y-3 rounded-xl border border-slate-200 p-4">

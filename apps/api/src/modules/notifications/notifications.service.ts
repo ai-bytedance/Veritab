@@ -13,7 +13,15 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService, private readonly crypto: WebhookCryptoService) {}
 
   private view(channel: { id: string; provider: WebhookProvider; name: string; enabled: boolean; eventTypes: string[]; encryptedEndpoint: string | null; encryptedSecret: string | null; version: number; updatedAt: Date }) {
-    return { id: channel.id, provider: channel.provider, name: channel.name, enabled: channel.enabled, eventTypes: channel.eventTypes, endpointConfigured: Boolean(channel.encryptedEndpoint), secretConfigured: Boolean(channel.encryptedSecret), version: channel.version, updatedAt: channel.updatedAt };
+    return { id: channel.id, provider: channel.provider, name: channel.name, enabled: channel.enabled, eventTypes: channel.eventTypes, endpointConfigured: Boolean(channel.encryptedEndpoint), endpointPreview: channel.encryptedEndpoint ? this.maskEndpoint(this.crypto.decrypt(channel.encryptedEndpoint)) : null, secretConfigured: Boolean(channel.encryptedSecret), version: channel.version, updatedAt: channel.updatedAt };
+  }
+
+  private maskEndpoint(endpoint: string): string {
+    const url = new URL(endpoint);
+    const segments = url.pathname.split("/");
+    const credential = segments.pop() ?? "";
+    segments.push(`${"•".repeat(Math.min(12, Math.max(6, credential.length - 6)))}${credential.slice(-6)}`);
+    return `${url.origin}${segments.join("/")}`;
   }
 
   async list(projectSpaceId: string) {

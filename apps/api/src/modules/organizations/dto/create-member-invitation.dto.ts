@@ -6,8 +6,8 @@ export class CreateMemberInvitationDto {
   @IsEmail()
   email!: string;
 
-  @IsIn(["org_admin", "space_admin", "developer", "tester", "viewer"])
-  roleCode!: "org_admin" | "space_admin" | "developer" | "tester" | "viewer";
+  @IsIn(["org_admin", "developer", "tester", "viewer"])
+  roleCode!: "org_admin" | "developer" | "tester" | "viewer";
 
   @IsOptional()
   @IsInt()

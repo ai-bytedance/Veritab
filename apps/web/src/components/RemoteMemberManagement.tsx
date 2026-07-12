@@ -5,11 +5,10 @@ import { CreatedInvitation, MemberApiScope } from "../features/members/api/types
 import { User } from "../types";
 
 const roles = [
-  ["org_admin", "组织管理员"],
-  ["space_admin", "空间管理员"],
-  ["developer", "开发人员"],
-  ["tester", "测试人员"],
-  ["viewer", "只读成员"],
+  ["org_admin", "组织管理员（全部空间）"],
+  ["developer", "开发人员（全部空间）"],
+  ["tester", "测试人员（全部空间）"],
+  ["viewer", "只读成员（全部空间）"],
 ] as const;
 
 export default function RemoteMemberManagement({ scope, currentUser }: { scope: MemberApiScope; currentUser: User }) {
@@ -18,6 +17,7 @@ export default function RemoteMemberManagement({ scope, currentUser }: { scope: 
   const [roleCode, setRoleCode] = useState("developer");
   const [created, setCreated] = useState<CreatedInvitation | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState("");
 
   const run = async (action: () => Promise<unknown>, success: string) => {
     setMessage(null);
@@ -98,6 +98,19 @@ export default function RemoteMemberManagement({ scope, currentUser }: { scope: 
               <td className="p-2 text-[10px] text-slate-500">{member.user.lastLoginAt ? new Date(member.user.lastLoginAt).toLocaleString() : "从未登录"}</td>
             </tr>;
           })}</tbody></table></div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3"><Users className="h-4 w-4 text-violet-600" /><div><h3 className="text-xs font-black text-slate-800">用户组</h3><p className="text-[10px] text-slate-400">用户组是成员集合，不等同于组织管理员或空间管理员角色。</p></div></div>
+        <div className="flex gap-2"><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="用户组名称" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs" /><button disabled={remote.isSaving || groupName.trim().length < 2} onClick={() => void run(async () => { await remote.createGroup({ name: groupName.trim() }); setGroupName(""); }, "用户组已创建")} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">创建用户组</button></div>
+        {remote.groups.length === 0 ? <p className="py-4 text-center text-xs text-slate-400">暂无用户组</p> : remote.groups.map((group) => {
+          const available = remote.members.filter((member) => !group.members.some((item) => item.userId === member.user.id));
+          return <div key={group.id} className="rounded-xl border border-slate-100 p-3 space-y-2">
+            <div className="flex items-center justify-between"><div className="text-xs font-black text-slate-800">{group.name} <span className="font-normal text-slate-400">({group.members.length})</span></div><button onClick={() => void run(() => remote.deleteGroup(group.id), "用户组已删除")} className="text-[10px] font-bold text-rose-600">删除</button></div>
+            <div className="flex flex-wrap gap-2">{group.members.map((item) => <button key={item.userId} onClick={() => void run(() => remote.removeGroupMember({ groupId: group.id, userId: item.userId }), "成员已移出用户组")} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-600">{item.user.displayName} ×</button>)}</div>
+            {available.length > 0 && <select defaultValue="" onChange={(event) => { if (event.target.value) void run(() => remote.addGroupMember({ groupId: group.id, userId: event.target.value }), "成员已加入用户组"); event.target.value = ""; }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] bg-white"><option value="">添加成员…</option>{available.map((member) => <option key={member.user.id} value={member.user.id}>{member.user.displayName}</option>)}</select>}
+          </div>;
+        })}
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">

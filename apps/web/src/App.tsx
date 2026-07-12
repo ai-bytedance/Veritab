@@ -47,6 +47,7 @@ export default function App() {
         : undefined;
   const [requirementApiScope, setRequirementApiScope] = useState<RequirementApiScope | undefined>(configuredApiScope);
   const [organizationId, setOrganizationId] = useState<string | undefined>(configuredApiScope?.organizationId);
+  const [organizationResolved, setOrganizationResolved] = useState(Boolean(configuredApiScope));
   const gitIntegration = useGitIntegrations(requirementApiScope);
   // Server-backed view state. PostgreSQL remains the sole business source of truth.
   const [projects, setProjects] = useState<Project[]>([]);
@@ -130,11 +131,18 @@ export default function App() {
       .then((scope) => {
         if (!cancelled && scope) setRequirementApiScope(scope);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setOrganizationResolved(true); });
     return () => {
       cancelled = true;
     };
   }, [isLoggedOut, requirementApiScope]);
+
+  useEffect(() => {
+    if (currentUser.id && organizationResolved && !organizationId && activeTab !== ProjectTab.CONFIG) {
+      setActiveTab(ProjectTab.CONFIG);
+    }
+  }, [currentUser.id, organizationResolved, organizationId, activeTab]);
 
   useEffect(() => {
     if (isLoggedOut || !requirementApiScope) return;

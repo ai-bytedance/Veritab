@@ -5,6 +5,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { CreateMemberInvitationDto } from "./dto/create-member-invitation.dto";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
+import { CreateUserGroupDto } from "./dto/create-user-group.dto";
 
 @Injectable()
 export class OrganizationsService {
@@ -166,6 +167,55 @@ export class OrganizationsService {
         data: { organizationId, actorId, action: "member.role.assign", resourceType: "RoleBinding", resourceId: binding.id, metadata: { userId, roleCode } },
       });
       return { userId, roleCode };
+    });
+  }
+
+  listGroups(organizationId: string) {
+    return this.prisma.userGroup.findMany({
+      where: { organizationId },
+      include: { members: { include: { user: { select: { id: true, username: true, displayName: true } } }, orderBy: { createdAt: "asc" } } },
+      orderBy: { name: "asc" },
+    });
+  }
+
+  async createGroup(organizationId: string, actorId: string, dto: CreateUserGroupDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const group = await tx.userGroup.create({ data: { organizationId, name: dto.name.trim(), description: dto.description?.trim() || null } });
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.create", resourceType: "UserGroup", resourceId: group.id } });
+      return { ...group, members: [] };
+    }).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") throw new ConflictException("Group name is already in use");
+      throw error;
+    });
+  }
+
+  async addGroupMember(organizationId: string, groupId: string, userId: string, actorId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const [group, member] = await Promise.all([
+        tx.userGroup.findFirst({ where: { id: groupId, organizationId } }),
+        tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId, userId } } }),
+      ]);
+      if (!group || !member) throw new NotFoundException("Group or organization member not found");
+      await tx.groupMember.upsert({ where: { groupId_userId: { groupId, userId } }, create: { groupId, userId }, update: {} });
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.member.add", resourceType: "UserGroup", resourceId: groupId, metadata: { userId } } });
+      return { groupId, userId };
+    });
+  }
+
+  async removeGroupMember(organizationId: string, groupId: string, userId: string, actorId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const group = await tx.userGroup.findFirst({ where: { id: groupId, organizationId }, select: { id: true } });
+      if (!group) throw new NotFoundException("Group not found");
+      await tx.groupMember.deleteMany({ where: { groupId, userId } });
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.member.remove", resourceType: "UserGroup", resourceId: groupId, metadata: { userId } } });
+    });
+  }
+
+  async deleteGroup(organizationId: string, groupId: string, actorId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const deleted = await tx.userGroup.deleteMany({ where: { id: groupId, organizationId } });
+      if (!deleted.count) throw new NotFoundException("Group not found");
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.delete", resourceType: "UserGroup", resourceId: groupId } });
     });
   }
 
