@@ -12,7 +12,8 @@ describe("NotificationWorkerService", () => {
     testCase: { findUnique: jest.fn() },
   };
   const crypto = { decrypt: jest.fn((value: string) => value) };
-  const worker = new NotificationWorkerService(prisma as never, crypto as never);
+  const config = { get: jest.fn().mockReturnValue("https://veritab.example/app") };
+  const worker = new NotificationWorkerService(prisma as never, crypto as never, config as never);
   const event = {
     id: "event-1",
     attempts: 1,
@@ -94,7 +95,11 @@ describe("NotificationWorkerService", () => {
     expect(transaction.outboxEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         eventType: "NotificationRequested",
-        payload: expect.objectContaining({ title: "[Veritab] 需求已创建", body: expect.stringContaining("VT-REQ-000001 登录能力") }),
+        payload: expect.objectContaining({
+          title: "[Veritab] 需求已创建",
+          body: expect.stringContaining("VT-REQ-000001 登录能力"),
+          link: "https://veritab.example/app?organizationId=organization-1&projectSpaceId=space-1&tab=requirement&focus=requirement-1",
+        }),
       }),
     }));
     expect(transaction.outboxEvent.updateMany).toHaveBeenCalledWith(expect.objectContaining({

@@ -31,13 +31,19 @@ const MetricsDashboard = lazy(() => import("./components/MetricsDashboard"));
 const SystemConfigPanel = lazy(() => import("./components/SystemConfigPanel"));
 
 export default function App() {
+  const deepLink = new URLSearchParams(window.location.search);
+  const linkedOrganizationId = deepLink.get("organizationId");
+  const linkedProjectSpaceId = deepLink.get("projectSpaceId");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const configuredApiScope: RequirementApiScope | undefined =
     import.meta.env.VITE_ORGANIZATION_ID && import.meta.env.VITE_PROJECT_SPACE_ID
       ? {
           organizationId: import.meta.env.VITE_ORGANIZATION_ID,
           projectSpaceId: import.meta.env.VITE_PROJECT_SPACE_ID,
         }
-      : undefined;
+      : linkedOrganizationId && linkedProjectSpaceId && uuid.test(linkedOrganizationId) && uuid.test(linkedProjectSpaceId)
+        ? { organizationId: linkedOrganizationId, projectSpaceId: linkedProjectSpaceId }
+        : undefined;
   const [requirementApiScope, setRequirementApiScope] = useState<RequirementApiScope | undefined>(configuredApiScope);
   const gitIntegration = useGitIntegrations(requirementApiScope);
   // Server-backed view state. PostgreSQL remains the sole business source of truth.
@@ -101,8 +107,11 @@ export default function App() {
   const [isPromptMissingOpen, setIsPromptMissingOpen] = useState(false);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<ProjectTab>(ProjectTab.OVERVIEW);
-  const [focusedTestCaseId, setFocusedTestCaseId] = useState<string | null>(null);
+  const linkedTab = deepLink.get("tab");
+  const initialTab = Object.values(ProjectTab).includes(linkedTab as ProjectTab) ? linkedTab as ProjectTab : ProjectTab.OVERVIEW;
+  const linkedFocus = deepLink.get("focus");
+  const [activeTab, setActiveTab] = useState<ProjectTab>(initialTab);
+  const [focusedTestCaseId, setFocusedTestCaseId] = useState<string | null>(linkedFocus && uuid.test(linkedFocus) ? linkedFocus : null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {

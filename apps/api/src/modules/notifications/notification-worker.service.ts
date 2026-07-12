@@ -1,5 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Prisma, WebhookProvider } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { WebhookCryptoService } from "./webhook-crypto.service";
@@ -28,7 +29,11 @@ export class NotificationWorkerService {
   private readonly workerId = `notification-${process.pid}-${randomUUID()}`;
   private readonly maxAttempts = 8;
 
-  constructor(private readonly prisma: PrismaService, private readonly crypto: WebhookCryptoService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly crypto: WebhookCryptoService,
+    private readonly config: ConfigService,
+  ) {}
 
   async processOne(): Promise<boolean> {
     const events = await this.prisma.$queryRaw<ClaimedEvent[]>(Prisma.sql`
@@ -106,7 +111,7 @@ export class NotificationWorkerService {
               provider: channel.provider,
               title: message.title,
               body: message.body,
-              link: null,
+              link: this.domainLink(context, event),
               sourceEventId: event.id,
             },
           },
@@ -126,6 +131,16 @@ export class NotificationWorkerService {
       throw new Error("Invalid domain event context");
     }
     return { organizationId: payload.organizationId, projectSpaceId: payload.projectSpaceId };
+  }
+
+  private domainLink(context: { organizationId: string; projectSpaceId: string }, event: ClaimedEvent): string {
+    const tabs: Record<string, string> = { Requirement: "requirement", Defect: "defect", TestCase: "testcase" };
+    const baseUrl = new URL(this.config.get<string>("WEB_APP_URL", "http://localhost:5173"));
+    baseUrl.searchParams.set("organizationId", context.organizationId);
+    baseUrl.searchParams.set("projectSpaceId", context.projectSpaceId);
+    baseUrl.searchParams.set("tab", tabs[event.aggregateType] ?? "overview");
+    baseUrl.searchParams.set("focus", event.aggregateId);
+    return baseUrl.toString();
   }
 
   private async describeDomainEvent(event: ClaimedEvent): Promise<{ title: string; body: string }> {

@@ -4,6 +4,7 @@ x-api-environment: &api-environment
   NODE_ENV: production
   PORT: 3001
   TRUST_PROXY: "true"
+  METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN is required}
   DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
   REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
   JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
@@ -14,6 +15,7 @@ x-api-environment: &api-environment
   JWT_AUDIENCE: ${JWT_AUDIENCE:-veritab-web}
   COOKIE_SECURE: "true"
   CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+  WEB_APP_URL: ${WEB_APP_URL:?WEB_APP_URL is required}
   WEBHOOK_ENCRYPTION_KEY: ${WEBHOOK_ENCRYPTION_KEY:?WEBHOOK_ENCRYPTION_KEY is required}
   AI_BASE_URL: ${AI_BASE_URL:-}
   AI_API_KEY: ${AI_API_KEY:-}

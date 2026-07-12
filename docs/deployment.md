@@ -17,6 +17,7 @@ docker compose --env-file .env.production -f compose.production.yaml up -d
 - PostgreSQL 和 Redis 不暴露宿主机端口。
 - `.env.production` 禁止提交；生产优先使用 Docker/Kubernetes Secrets 或云 Secret Manager。
 - `WEBHOOK_ENCRYPTION_KEY` 必须备份并建立轮换方案，丢失后已有渠道密文无法恢复。
+- `WEB_APP_URL` 必须是用户可访问的 HTTPS 前端地址，机器人卡片会基于它生成需求、缺陷和用例详情链接。
 - PostgreSQL/Redis 卷必须配置加密备份、恢复演练、磁盘告警和异地副本。
 
 Compose 中的资源额度是 100–200 人规模的保守起点，不是容量承诺。上线前应根据压测结果调整，并在 Kubernetes/ECS 等平台配置多 API 副本、PodDisruptionBudget、自动扩缩容和托管数据库。

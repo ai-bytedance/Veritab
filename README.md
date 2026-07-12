@@ -26,7 +26,7 @@ npm run build
 
 本地基础设施与环境变量参见 [.env.example](.env.example) 和 [compose.yaml](compose.yaml)。详细架构见 [docs/architecture.md](docs/architecture.md)。
 
-生产容器部署参见 [docs/deployment.md](docs/deployment.md) 与 [compose.production.yaml](compose.production.yaml)。
+生产容器部署参见 [docs/deployment.md](docs/deployment.md)、[生产监控基线](docs/monitoring.md) 与 [compose.production.yaml](compose.production.yaml)。
 
 正式上线前必须逐项完成 [商业上线就绪度与 P0 门禁](docs/commercial-readiness.md)。
 
