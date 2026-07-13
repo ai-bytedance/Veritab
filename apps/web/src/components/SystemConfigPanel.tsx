@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   CheckCircle,
   Lock,
-  UserCheck,
   Eye,
   EyeOff,
   LayoutGrid,
@@ -25,8 +24,6 @@ import {
 } from "lucide-react";
 
 import PromptTemplateSection from "./PromptTemplateSection";
-import RemoteMemberManagement from "./RemoteMemberManagement";
-import { MemberApiScope } from "../features/members/api/types";
 import RemoteNotificationChannels from "./RemoteNotificationChannels";
 import { RequirementApiScope } from "../features/requirements/api/types";
 import OrganizationSpaceSettings, { OrganizationSummary } from "./OrganizationSpaceSettings";
@@ -35,7 +32,6 @@ interface SystemConfigPanelProps {
   systemConfig: SystemConfig;
   onUpdateConfig: (cfg: SystemConfig) => Promise<void>;
   currentUser: SystemUser;
-  memberApiScope: MemberApiScope;
   notificationApiScope: RequirementApiScope;
   organization: OrganizationSummary;
   activeProject: Project;
@@ -53,7 +49,6 @@ export default function SystemConfigPanel({
   systemConfig,
   onUpdateConfig,
   currentUser,
-  memberApiScope,
   notificationApiScope,
   organization,
   activeProject,
@@ -76,7 +71,7 @@ export default function SystemConfigPanel({
   };
 
   // Tab State
-  const [settingsTab, setSettingsTab] = useState<"project" | "prompt" | "navigation" | "notifications" | "users">("project");
+  const [settingsTab, setSettingsTab] = useState<"project" | "prompt" | "navigation" | "notifications">("project");
 
   const [visibleMenus, setVisibleMenus] = useState<string[]>(() => {
     const list = systemConfig.visibleMenus || ["overview", "requirement", "defect", "testcase", "code_changes", "metrics", "config"];
@@ -177,7 +172,7 @@ export default function SystemConfigPanel({
           }`}
         >
           <Building2 className="h-4 w-4" />
-          <span>组织与空间</span>
+          <span>租户管理</span>
         </button>
         <button
           onClick={() => setSettingsTab("prompt")}
@@ -210,21 +205,10 @@ export default function SystemConfigPanel({
           <ShieldCheck className="h-4 w-4" />
           <span>通知渠道</span>
         </button>
-        <button
-          onClick={() => setSettingsTab("users")}
-          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap ${
-            settingsTab === "users"
-              ? "bg-white text-indigo-700 shadow-3xs"
-              : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/40"
-          }`}
-        >
-          <UserCheck className="h-4 w-4" />
-          <span>成员与权限</span>
-        </button>
       </div>
 
       {settingsTab === "project" && (
-        <OrganizationSpaceSettings organization={organization} organizations={organizations} project={activeProject} projects={projects} onSelectOrganization={onSelectOrganization} onCreateOrganization={onCreateOrganization} onSelectProject={onSelectProject} onCreateProject={onCreateProject} onUpdateOrganization={onUpdateOrganization} onUpdateProject={onUpdateProject} showToast={showToast} />
+        <OrganizationSpaceSettings organization={organization} organizations={organizations} project={activeProject} projects={projects} currentUser={currentUser} onSelectOrganization={onSelectOrganization} onCreateOrganization={onCreateOrganization} onSelectProject={onSelectProject} onCreateProject={onCreateProject} onUpdateOrganization={onUpdateOrganization} onUpdateProject={onUpdateProject} showToast={showToast} />
       )}
 
       {settingsTab === "prompt" && (
@@ -320,11 +304,6 @@ export default function SystemConfigPanel({
         </div>
       )}
 
-      {settingsTab === "users" && (
-        <div className="w-full animate-fade-in animate-in fade-in duration-200" id="system-config-users-tab">
-          <RemoteMemberManagement scope={memberApiScope} currentUser={currentUser} projectSpace={{ id: activeProject.id, name: activeProject.name }} />
-        </div>
-      )}
       {settingsTab === "notifications" && <RemoteNotificationChannels scope={notificationApiScope} />}
     </div>
   );

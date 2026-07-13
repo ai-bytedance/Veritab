@@ -5,7 +5,7 @@ import { RbacService } from "./rbac.service";
 describe("RbacService", () => {
   const prisma = {
     organizationMember: { findUnique: jest.fn() },
-    projectSpace: { findFirst: jest.fn() },
+    projectMember: { findFirst: jest.fn() },
     roleBinding: { findMany: jest.fn() },
   };
   const service = new RbacService(prisma as unknown as PrismaService);
@@ -13,7 +13,7 @@ describe("RbacService", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     prisma.organizationMember.findUnique.mockResolvedValue({ status: MembershipStatus.ACTIVE });
-    prisma.projectSpace.findFirst.mockResolvedValue({ id: "space-1" });
+    prisma.projectMember.findFirst.mockResolvedValue({ userId: "user-1" });
   });
 
   it("allows only when every requested permission is granted", async () => {
@@ -52,7 +52,7 @@ describe("RbacService", () => {
   });
 
   it("denies access when the project does not belong to the scoped organization", async () => {
-    prisma.projectSpace.findFirst.mockResolvedValue(null);
+    prisma.projectMember.findFirst.mockResolvedValue(null);
 
     await expect(
       service.hasAllPermissions(

@@ -25,6 +25,11 @@ enum ScopeType {
   PROJECT_SPACE
 }
 
+enum RoleScope {
+  ORGANIZATION
+  PROJECT_SPACE
+}
+
 enum IdentityProviderType {
   OIDC
   SAML
@@ -172,6 +177,8 @@ model User {
   testCaseExecutions   TestCaseExecution[]
   updatedTestCatalogs  TestCaseCatalog[]
   sentInvitations      OrganizationInvitation[] @relation("InvitationSender")
+  sentProjectInvitations ProjectInvitation[]     @relation("ProjectInvitationSender")
+  receivedProjectInvitations ProjectInvitation[] @relation("ProjectInvitationTarget")
   uploadedFiles        FileObject[]
 
   @@map("users")
@@ -223,6 +230,7 @@ model OrganizationMember {
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([organizationId, userId])
+  @@unique([userId])
   @@index([userId, status])
   @@map("organization_members")
 }
@@ -240,6 +248,7 @@ model ProjectSpace {
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members         ProjectMember[]
   roleBindings    RoleBinding[]
+  roles           Role[]
   iterations      Iteration[]
   requirements    Requirement[]
   defects         Defect[]
@@ -253,6 +262,7 @@ model ProjectSpace {
   auditLogs       AuditLog[]
   counter         ProjectCounter?
   fileObjects     FileObject[]
+  invitations     ProjectInvitation[]
 
   @@unique([organizationId, key])
   @@index([organizationId, updatedAt(sort: Desc)])
@@ -298,20 +308,43 @@ model ProjectMember {
   @@map("project_members")
 }
 
+model ProjectInvitation {
+  id             String       @id @default(uuid()) @db.Uuid
+  projectSpaceId String       @map("project_space_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  invitedById    String       @map("invited_by_id") @db.Uuid
+  roleIds        Json         @map("role_ids")
+  acceptedAt     DateTime?    @map("accepted_at") @db.Timestamptz(3)
+  revokedAt      DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  expiresAt      DateTime     @map("expires_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  projectSpace   ProjectSpace @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
+  user           User         @relation("ProjectInvitationTarget", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy      User         @relation("ProjectInvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([projectSpaceId, createdAt(sort: Desc)])
+  @@index([userId, acceptedAt, revokedAt])
+  @@map("project_invitations")
+}
+
 model Role {
   id             String                   @id @default(uuid()) @db.Uuid
   organizationId String?                  @map("organization_id") @db.Uuid
+  projectSpaceId String?                  @map("project_space_id") @db.Uuid
+  scope          RoleScope                @default(ORGANIZATION)
   code           String                   @db.VarChar(64)
   name           String                   @db.VarChar(120)
   description    String?                  @db.VarChar(500)
   isSystem       Boolean                  @default(false) @map("is_system")
   version        Int                      @default(1)
   organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectSpace   ProjectSpace?             @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
   permissions    RolePermission[]
   bindings       RoleBinding[]
   invitations    OrganizationInvitation[]
 
   @@unique([organizationId, code])
+  @@index([organizationId, scope, projectSpaceId])
   @@index([code])
   @@map("roles")
 }

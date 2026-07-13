@@ -14,7 +14,6 @@ export const membersApi = {
     apiRequest(`${root(scope)}/members/${userId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   assignRole: (scope: MemberApiScope, userId: string, roleCode: string) =>
     apiRequest(`${root(scope)}/members/${userId}/role`, { method: "PUT", body: JSON.stringify({ roleCode }) }),
-  assignProjectRole: (scope: MemberApiScope, userId: string, input: { projectSpaceId: string; roleCode?: string }) => apiRequest(`${root(scope)}/members/${userId}/project-role`, { method: "PUT", body: JSON.stringify(input) }),
   roles: (scope: MemberApiScope) => apiRequest<ApiRole[]>(`${root(scope)}/roles`),
   permissions: (scope: MemberApiScope) => apiRequest<ApiPermission[]>(`${root(scope)}/permissions`),
   createRole: (scope: MemberApiScope, input: { name: string; description?: string; permissionCodes: string[] }) => apiRequest<ApiRole>(`${root(scope)}/roles`, { method: "POST", body: JSON.stringify(input) }),

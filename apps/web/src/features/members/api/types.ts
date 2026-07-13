@@ -30,4 +30,4 @@ export interface CreatedInvitation extends Omit<ApiOrganizationInvitation, "acce
 }
 
 export interface ApiPermission { code: string; description: string | null }
-export interface ApiRole { id: string; code: string; name: string; description: string | null; isSystem: boolean; version: number; permissions: Array<{ permission: ApiPermission }> }
+export interface ApiRole { id: string; code: string; name: string; description: string | null; isSystem: boolean; version: number; scope: "ORGANIZATION" | "PROJECT_SPACE"; projectSpaceId: string | null; permissions: Array<{ permission: ApiPermission }> }

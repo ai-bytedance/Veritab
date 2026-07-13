@@ -12,7 +12,6 @@ import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { AddRegisteredMemberDto } from "./dto/add-registered-member.dto";
 import { CreateRoleDto } from "./dto/create-role.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
-import { AssignProjectMemberRoleDto } from "./dto/assign-project-member-role.dto";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -92,12 +91,6 @@ export class OrganizationsController {
     @Body() dto: AssignMemberRoleDto,
   ) {
     return this.organizations.assignMemberRole(organizationId, userId, actorId, dto.roleCode);
-  }
-
-  @Put(":organizationId/members/:userId/project-role")
-  @RequirePermissions("member.manage")
-  assignProjectMemberRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("userId", ParseUUIDPipe) userId: string, @CurrentUser("userId") actorId: string, @Body() dto: AssignProjectMemberRoleDto) {
-    return this.organizations.assignProjectMemberRole(organizationId, userId, actorId, dto.projectSpaceId, dto.roleCode);
   }
 
   @Get(":organizationId/roles")

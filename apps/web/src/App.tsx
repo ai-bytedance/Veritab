@@ -565,7 +565,6 @@ export default function App() {
                   systemConfig={systemConfig}
                   onUpdateConfig={updateSystemConfig}
                   currentUser={currentUser}
-                  memberApiScope={{ organizationId: requirementApiScope!.organizationId }}
                   notificationApiScope={requirementApiScope}
                   organization={organization!}
                   activeProject={activeProject}

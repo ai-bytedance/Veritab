@@ -9,6 +9,7 @@ describe("OrganizationsService create", () => {
       auditLog: { create: jest.fn() },
     };
     const prisma = {
+      organizationMember: { findFirst: jest.fn().mockResolvedValue(null) },
       role: { findFirst: jest.fn().mockResolvedValue({ id: "role-id" }) },
       $transaction: jest.fn((operation: (client: typeof tx) => unknown) => operation(tx)),
     };

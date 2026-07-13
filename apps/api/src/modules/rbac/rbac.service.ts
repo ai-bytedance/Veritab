@@ -25,11 +25,11 @@ export class RbacService {
     });
     if (organizationMember?.status !== MembershipStatus.ACTIVE) return false;
     if (context.projectSpaceId) {
-      const space = await this.prisma.projectSpace.findFirst({
-        where: { id: context.projectSpaceId, organizationId: context.organizationId, archivedAt: null },
-        select: { id: true },
+      const membership = await this.prisma.projectMember.findFirst({
+        where: { projectSpaceId: context.projectSpaceId, userId: context.userId, status: MembershipStatus.ACTIVE, projectSpace: { organizationId: context.organizationId, archivedAt: null } },
+        select: { userId: true },
       });
-      if (!space) return false;
+      if (!membership) return false;
     }
 
     const bindings = await this.prisma.roleBinding.findMany({
@@ -39,10 +39,7 @@ export class RbacService {
         AND: [
           {
             OR: [
-              { scopeType: ScopeType.ORGANIZATION, projectSpaceId: null },
-              ...(context.projectSpaceId
-                ? [{ scopeType: ScopeType.PROJECT_SPACE, projectSpaceId: context.projectSpaceId }]
-                : []),
+              ...(context.projectSpaceId ? [{ scopeType: ScopeType.PROJECT_SPACE, projectSpaceId: context.projectSpaceId }] : [{ scopeType: ScopeType.ORGANIZATION, projectSpaceId: null }]),
             ],
           },
         ],

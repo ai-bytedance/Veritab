@@ -55,10 +55,11 @@ async function main(): Promise<void> {
   );
 
   const roleDefinitions = [
-    { code: "org_admin", name: "组织管理员", permissions: permissionCodes },
+    { code: "org_admin", name: "组织管理员", scope: "ORGANIZATION" as const, permissions: permissionCodes },
     {
       code: "space_admin",
       name: "项目空间管理员",
+      scope: "PROJECT_SPACE" as const,
       permissions: permissionCodes.filter((code) => code !== "organization.manage"),
     },
   ] as const;
@@ -70,10 +71,10 @@ async function main(): Promise<void> {
     const role = existingRole
       ? await prisma.role.update({
           where: { id: existingRole.id },
-          data: { name: definition.name, isSystem: true },
+          data: { name: definition.name, isSystem: true, scope: definition.scope },
         })
       : await prisma.role.create({
-          data: { code: definition.code, name: definition.name, isSystem: true },
+          data: { code: definition.code, name: definition.name, isSystem: true, scope: definition.scope },
         });
     const allowed = permissions.filter((permission) =>
       (definition.permissions as readonly string[]).includes(permission.code),
