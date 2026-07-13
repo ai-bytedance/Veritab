@@ -12,6 +12,8 @@ import { CreateUserGroupDto } from "./dto/create-user-group.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { AddRegisteredMemberDto } from "./dto/add-registered-member.dto";
 import { AssignGroupRoleDto } from "./dto/assign-group-role.dto";
+import { CreateRoleDto } from "./dto/create-role.dto";
+import { UpdateRoleDto } from "./dto/update-role.dto";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -103,6 +105,29 @@ export class OrganizationsController {
   @RequirePermissions("member.read")
   listRoles(@Param("organizationId", ParseUUIDPipe) organizationId: string) {
     return this.organizations.listRoles(organizationId);
+  }
+
+  @Get(":organizationId/permissions")
+  @RequirePermissions("member.read")
+  listPermissions() { return this.organizations.listPermissions(); }
+
+  @Post(":organizationId/roles")
+  @RequirePermissions("member.manage")
+  createRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @CurrentUser("userId") actorId: string, @Body() dto: CreateRoleDto) {
+    return this.organizations.createRole(organizationId, actorId, dto);
+  }
+
+  @Patch(":organizationId/roles/:roleId")
+  @RequirePermissions("member.manage")
+  updateRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("roleId", ParseUUIDPipe) roleId: string, @CurrentUser("userId") actorId: string, @Body() dto: UpdateRoleDto) {
+    return this.organizations.updateRole(organizationId, roleId, actorId, dto);
+  }
+
+  @Delete(":organizationId/roles/:roleId")
+  @RequirePermissions("member.manage")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("roleId", ParseUUIDPipe) roleId: string, @CurrentUser("userId") actorId: string) {
+    return this.organizations.deleteRole(organizationId, roleId, actorId);
   }
 
   @Post(":organizationId/groups")

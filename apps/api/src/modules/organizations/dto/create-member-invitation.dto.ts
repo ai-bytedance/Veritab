@@ -1,13 +1,13 @@
 import { Transform } from "class-transformer";
-import { IsEmail, IsIn, IsInt, IsOptional, Max, Min } from "class-validator";
+import { IsEmail, IsInt, IsOptional, IsString, Length, Max, Min } from "class-validator";
 
 export class CreateMemberInvitationDto {
   @Transform(({ value }) => typeof value === "string" ? value.trim().toLowerCase() : value)
   @IsEmail()
   email!: string;
 
-  @IsIn(["org_admin", "developer", "tester", "viewer"])
-  roleCode!: "org_admin" | "developer" | "tester" | "viewer";
+  @IsString() @Length(2, 64)
+  roleCode!: string;
 
   @IsOptional()
   @IsInt()

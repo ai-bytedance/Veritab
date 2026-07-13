@@ -37,4 +37,5 @@ export interface ApiUserGroup {
   roleBindings: Array<{ id: string; scopeType: "ORGANIZATION" | "PROJECT_SPACE"; projectSpaceId: string | null; role: { code: string; name: string }; projectSpace: { id: string; key: string; name: string } | null }>;
 }
 
-export interface ApiRole { id: string; code: string; name: string; description: string | null; permissions: Array<{ permission: { code: string; description: string | null } }> }
+export interface ApiPermission { code: string; description: string | null }
+export interface ApiRole { id: string; code: string; name: string; description: string | null; isSystem: boolean; version: number; permissions: Array<{ permission: ApiPermission }> }

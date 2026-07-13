@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Plus, Search, UserPlus, X } from "lucide-react";
 import { apiRequest } from "../api/httpClient";
+import { ApiRole } from "../features/members/api/types";
 
 interface RegisteredUser {
   id: string; username: string; displayName: string; email: string; feishuUserId: string | null;
@@ -9,15 +10,14 @@ interface RegisteredUser {
   groupMembers: Array<{ group: { id: string; name: string } }>;
 }
 
-const roleOptions = [["developer", "开发人员"], ["tester", "测试人员"], ["viewer", "只读成员"], ["org_admin", "组织管理员"]] as const;
-
-export default function SystemUserRegistry({ organizationId, currentUserId }: { organizationId: string; currentUserId: string }) {
+export default function SystemUserRegistry({ organizationId, currentUserId, roles }: { organizationId: string; currentUserId: string; roles: ApiRole[] }) {
+  const roleOptions = roles.filter((role) => role.code !== "space_admin");
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [query, setQuery] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ username: "", displayName: "", email: "", password: "", feishuUserId: "", roleCode: "developer" });
+  const [form, setForm] = useState({ username: "", displayName: "", email: "", password: "", feishuUserId: "", roleCode: "org_admin" });
   const [editing, setEditing] = useState<RegisteredUser | null>(null);
   const [editForm, setEditForm] = useState({ displayName: "", email: "", feishuUserId: "" });
 
@@ -34,7 +34,7 @@ export default function SystemUserRegistry({ organizationId, currentUserId }: { 
     try {
       const created = await apiRequest<RegisteredUser>("/users", { method: "POST", body: JSON.stringify({ ...form, feishuUserId: form.feishuUserId || undefined }) });
       await apiRequest(`/organizations/${organizationId}/members`, { method: "POST", body: JSON.stringify({ userId: created.id, roleCode: form.roleCode }) });
-      setForm({ username: "", displayName: "", email: "", password: "", feishuUserId: "", roleCode: "developer" });
+      setForm({ username: "", displayName: "", email: "", password: "", feishuUserId: "", roleCode: roleOptions[0]?.code || "org_admin" });
       setShowCreate(false); setMessage("注册用户已创建并加入当前组织"); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : "用户创建失败"); }
     finally { setSaving(false); }
@@ -64,7 +64,7 @@ export default function SystemUserRegistry({ organizationId, currentUserId }: { 
     {message && <div className="mx-5 mt-4 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">{message}</div>}
     {showCreate && <form onSubmit={create} className="m-5 rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4">
       <div className="mb-3 flex items-center justify-between"><div className="text-xs font-black text-slate-800">创建登录账号</div><button type="button" onClick={() => setShowCreate(false)}><X className="h-4 w-4 text-slate-400" /></button></div>
-      <div className="grid gap-3 md:grid-cols-3"><input required minLength={3} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="登录账号" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input required minLength={2} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="显示名称" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="联系邮箱" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input required minLength={12} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="初始密码（至少12位）" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input value={form.feishuUserId} onChange={(e) => setForm({ ...form, feishuUserId: e.target.value })} placeholder="飞书 User ID（可选）" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><select value={form.roleCode} onChange={(e) => setForm({ ...form, roleCode: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white">{roleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+      <div className="grid gap-3 md:grid-cols-3"><input required minLength={3} value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="登录账号" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input required minLength={2} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="显示名称" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="联系邮箱" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input required minLength={12} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="初始密码（至少12位）" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input value={form.feishuUserId} onChange={(e) => setForm({ ...form, feishuUserId: e.target.value })} placeholder="飞书 User ID（可选）" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><select value={form.roleCode} onChange={(e) => setForm({ ...form, roleCode: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white">{roleOptions.map((role) => <option key={role.id} value={role.code}>{role.name}</option>)}</select></div>
       <button disabled={saving} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50"><UserPlus className="h-4 w-4" />{saving ? "创建中…" : "创建并加入组织"}</button>
     </form>}
     {editing && <form onSubmit={saveEdit} className="m-5 grid gap-3 rounded-2xl border border-amber-100 bg-amber-50/30 p-4 md:grid-cols-3"><input required minLength={2} value={editForm.displayName} onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })} placeholder="显示名称" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input required type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="联系邮箱" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input value={editForm.feishuUserId} onChange={(e) => setEditForm({ ...editForm, feishuUserId: e.target.value })} placeholder="飞书 User ID" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><div className="flex gap-2 md:col-span-3"><button disabled={saving} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white">保存资料</button><button type="button" onClick={() => setEditing(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600">取消</button></div></form>}

@@ -33,13 +33,23 @@ const permissionCodes = [
   "audit.read",
 ] as const;
 
+const permissionNames: Record<(typeof permissionCodes)[number], string> = {
+  "organization.read": "查看组织", "organization.manage": "管理组织",
+  "space.read": "查看项目空间", "space.manage": "管理项目空间",
+  "member.read": "查看成员与群组", "member.manage": "管理成员与群组",
+  "requirement.read": "查看需求", "requirement.create": "创建需求", "requirement.update": "编辑需求", "requirement.transition": "变更需求状态", "requirement.delete": "删除需求",
+  "defect.read": "查看缺陷", "defect.create": "创建缺陷", "defect.update": "编辑缺陷", "defect.transition": "变更缺陷状态", "defect.delete": "删除缺陷", "defect.comment": "评论缺陷",
+  "testcase.read": "查看用例", "testcase.create": "创建用例", "testcase.update": "编辑用例", "testcase.execute": "执行用例", "testcase.delete": "删除用例", "testcase.mindmap": "编辑用例脑图", "testcase.import": "导入用例", "testcase.export": "导出用例",
+  "integration.read": "查看服务集成", "integration.manage": "管理服务集成", "audit.read": "查看审计日志",
+};
+
 async function main(): Promise<void> {
   const permissions = await Promise.all(
     permissionCodes.map((code) =>
       prisma.permission.upsert({
         where: { code },
-        update: {},
-        create: { code, description: `Allows ${code}` },
+        update: { description: permissionNames[code] },
+        create: { code, description: permissionNames[code] },
       }),
     ),
   );
@@ -50,53 +60,6 @@ async function main(): Promise<void> {
       code: "space_admin",
       name: "项目空间管理员",
       permissions: permissionCodes.filter((code) => code !== "organization.manage"),
-    },
-    {
-      code: "developer",
-      name: "开发人员",
-      permissions: [
-        "space.read",
-        "member.read",
-        "requirement.read",
-        "requirement.update",
-        "requirement.transition",
-        "defect.read",
-        "defect.create",
-        "defect.update",
-        "defect.transition",
-        "defect.comment",
-        "testcase.read",
-        "testcase.export",
-        "integration.read",
-      ],
-    },
-    {
-      code: "tester",
-      name: "测试人员",
-      permissions: [
-        "space.read",
-        "member.read",
-        "requirement.read",
-        "defect.read",
-        "defect.create",
-        "defect.update",
-        "defect.transition",
-        "defect.delete",
-        "defect.comment",
-        "testcase.read",
-        "testcase.create",
-        "testcase.update",
-        "testcase.execute",
-        "testcase.delete",
-        "testcase.mindmap",
-        "testcase.import",
-        "testcase.export",
-      ],
-    },
-    {
-      code: "viewer",
-      name: "只读成员",
-      permissions: ["organization.read", "space.read", "member.read", "requirement.read", "defect.read", "testcase.read"],
     },
   ] as const;
 

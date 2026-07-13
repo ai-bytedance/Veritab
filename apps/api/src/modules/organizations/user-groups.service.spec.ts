@@ -27,4 +27,15 @@ describe("OrganizationsService user groups", () => {
     await new OrganizationsService(prisma as never).assignGroupRole("org", "group", "actor", { scopeType: "PROJECT_SPACE", projectSpaceId: "space", roleCode: "tester" });
     expect(tx.roleBinding.create).toHaveBeenCalledWith({ data: expect.objectContaining({ groupId: "group", projectSpaceId: "space", roleId: "role", scopeType: "PROJECT_SPACE" }) });
   });
+
+  it("creates an organization-owned custom role from validated permissions", async () => {
+    const tx = {
+      permission: { findMany: jest.fn().mockResolvedValue([{ id: "permission", code: "requirement.read" }]) },
+      role: { create: jest.fn().mockResolvedValue({ id: "role", name: "产品成员", permissions: [] }) },
+      auditLog: { create: jest.fn() },
+    };
+    const prisma = { $transaction: jest.fn((operation: (client: typeof tx) => unknown) => operation(tx)) };
+    await new OrganizationsService(prisma as never).createRole("org", "actor", { name: "产品成员", permissionCodes: ["requirement.read"] });
+    expect(tx.role.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ organizationId: "org", name: "产品成员" }) }));
+  });
 });

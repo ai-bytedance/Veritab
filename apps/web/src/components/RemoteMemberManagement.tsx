@@ -1,139 +1,71 @@
-import { useState } from "react";
-import { CheckCircle2, Copy, MailPlus, ShieldCheck, Trash2, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, MailPlus, Plus, Trash2 } from "lucide-react";
 import { useMembers } from "../features/members/api/useMembers";
 import { CreatedInvitation, MemberApiScope } from "../features/members/api/types";
 import { User } from "../types";
 import SystemUserRegistry from "./SystemUserRegistry";
 
-const roles = [
-  ["org_admin", "组织管理员（全部空间）"],
-  ["developer", "开发人员（全部空间）"],
-  ["tester", "测试人员（全部空间）"],
-  ["viewer", "只读成员（全部空间）"],
-] as const;
+type Tab = "members" | "groups" | "roles" | "invitations";
+const permissionModules: Record<string, string> = { organization: "组织", space: "项目空间", member: "成员与群组", requirement: "需求", defect: "缺陷", testcase: "用例", integration: "服务集成", audit: "审计" };
 
 export default function RemoteMemberManagement({ scope, currentUser, projectSpace }: { scope: MemberApiScope; currentUser: User; projectSpace: { id: string; name: string } }) {
   const remote = useMembers(scope);
-  const [email, setEmail] = useState("");
-  const [roleCode, setRoleCode] = useState("developer");
-  const [created, setCreated] = useState<CreatedInvitation | null>(null);
+  const [tab, setTab] = useState<Tab>("members");
   const [message, setMessage] = useState<string | null>(null);
   const [groupName, setGroupName] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | "new" | null>(null);
+  const [roleDraft, setRoleDraft] = useState({ name: "", description: "", permissionCodes: [] as string[] });
+  const [email, setEmail] = useState("");
+  const [inviteRoleCode, setInviteRoleCode] = useState("");
+  const [created, setCreated] = useState<CreatedInvitation | null>(null);
+  const selectedGroup = remote.groups.find((group) => group.id === selectedGroupId) || remote.groups[0];
+  const selectedRole = remote.roles.find((role) => role.id === selectedRoleId) || null;
+  const assignableRoles = remote.roles.filter((role) => role.code !== "space_admin");
 
-  const run = async (action: () => Promise<unknown>, success: string) => {
-    setMessage(null);
-    try {
-      await action();
-      setMessage(success);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "操作失败");
-    }
+  useEffect(() => { if (!selectedGroupId && remote.groups[0]) setSelectedGroupId(remote.groups[0].id); }, [remote.groups, selectedGroupId]);
+  useEffect(() => { if (!inviteRoleCode && assignableRoles[0]) setInviteRoleCode(assignableRoles[0].code); }, [assignableRoles, inviteRoleCode]);
+  useEffect(() => {
+    if (selectedRole) setRoleDraft({ name: selectedRole.name, description: selectedRole.description || "", permissionCodes: selectedRole.permissions.map((item) => item.permission.code) });
+    else if (selectedRoleId === "new") setRoleDraft({ name: "", description: "", permissionCodes: [] });
+  }, [selectedRole, selectedRoleId]);
+
+  const groupedPermissions = useMemo(() => Object.entries(remote.permissions.reduce<Record<string, typeof remote.permissions>>((result, permission) => {
+    const module = permission.code.split(".")[0]; (result[module] ||= []).push(permission); return result;
+  }, {})), [remote.permissions]);
+  const run = async (action: () => Promise<unknown>, success: string) => { setMessage(null); try { await action(); setMessage(success); } catch (error) { setMessage(error instanceof Error ? error.message : "操作失败"); } };
+  const saveRole = async () => {
+    if (selectedRoleId === "new") await run(async () => { const role = await remote.createRole(roleDraft); setSelectedRoleId(role.id); }, "自定义角色已创建");
+    else if (selectedRole && !selectedRole.isSystem) await run(() => remote.updateRole({ roleId: selectedRole.id, version: selectedRole.version, ...roleDraft }), "角色权限已更新");
   };
-
   const createInvitation = async () => {
-    const normalized = email.trim().toLowerCase();
-    if (!normalized) return setMessage("请输入成员邮箱");
-    try {
-      const result = await remote.invite({ email: normalized, roleCode, expiresInHours: 24 });
-      setCreated(result);
-      setEmail("");
-      setMessage("邀请已创建。激活Token仅显示本次，请通过安全渠道交付。 ");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "邀请创建失败");
-    }
+    if (!email.trim() || !inviteRoleCode) return;
+    try { const result = await remote.invite({ email: email.trim().toLowerCase(), roleCode: inviteRoleCode, expiresInHours: 24 }); setCreated(result); setEmail(""); setMessage("邀请已创建，激活 Token 仅显示一次"); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "邀请创建失败"); }
   };
 
-  return (
-    <div className="space-y-5">
-      {currentUser.role === "admin" && <SystemUserRegistry organizationId={scope.organizationId} currentUserId={currentUser.id} />}
-      {(remote.isLoading || remote.isSaving || remote.error || message) && (
-        <div className={`rounded-xl border px-4 py-2 text-xs font-bold ${remote.error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-indigo-100 bg-indigo-50 text-indigo-700"}`}>
-          {remote.error ? (remote.error instanceof Error ? remote.error.message : "成员服务异常") : remote.isSaving ? "正在保存成员变更…" : remote.isLoading ? "正在加载组织成员…" : message}
-        </div>
-      )}
+  const tabs: Array<[Tab, string, number]> = [["members", "成员", remote.members.length], ["groups", "用户组", remote.groups.length], ["roles", "角色与权限", remote.roles.length], ["invitations", "邀请记录", remote.invitations.length]];
+  return <div className="space-y-4">
+    <header className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-lg font-black text-slate-900">成员、群组与权限</h2><p className="mt-1 text-xs text-slate-500">先管理注册账号，再通过用户组和自定义角色集中授权。</p></div><nav className="flex rounded-xl bg-slate-100 p-1">{tabs.map(([id, label, count]) => <button key={id} onClick={() => setTab(id)} className={`rounded-lg px-4 py-2 text-xs font-bold transition ${tab === id ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>{label}<span className="ml-1.5 text-[10px] text-slate-400">{count}</span></button>)}</nav></div>
+    </header>
+    {(remote.isLoading || remote.isSaving || remote.error || message) && <div className={`rounded-xl border px-4 py-2 text-xs font-bold ${remote.error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-indigo-100 bg-indigo-50 text-indigo-700"}`}>{remote.error ? (remote.error instanceof Error ? remote.error.message : "服务异常") : remote.isSaving ? "正在保存…" : remote.isLoading ? "正在加载…" : message}</div>}
 
-      {created && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs font-black text-amber-900">一次性激活Token</div>
-              <div className="text-[10px] text-amber-700">{created.email} · {created.role.name} · {new Date(created.expiresAt).toLocaleString()}</div>
-            </div>
-            <button onClick={() => setCreated(null)} className="text-[10px] font-bold text-amber-700">关闭</button>
-          </div>
-          <div className="flex gap-2">
-            <input readOnly value={created.activationToken} className="min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-[10px]" />
-            <button onClick={() => void navigator.clipboard.writeText(created.activationToken)} className="inline-flex items-center gap-1 rounded-lg bg-amber-700 px-3 text-[10px] font-bold text-white">
-              <Copy className="h-3 w-3" />复制
-            </button>
-          </div>
-        </div>
-      )}
+    {tab === "members" && <div className="space-y-4">
+      {currentUser.role === "admin" && <SystemUserRegistry organizationId={scope.organizationId} currentUserId={currentUser.id} roles={remote.roles} />}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h3 className="text-sm font-black text-slate-900">当前组织成员</h3><p className="mt-1 text-xs text-slate-400">成员角色决定组织范围内的直接权限，用户组权限会叠加生效。</p></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-5 py-3">成员</th><th>邮箱</th><th>直接角色</th><th>状态</th><th>最近登录</th></tr></thead><tbody className="divide-y divide-slate-100">{remote.members.map((member) => { const self = member.user.id === currentUser.id; const current = member.user.roleBindings[0]?.role.code || ""; return <tr key={member.user.id} className="hover:bg-slate-50/70"><td className="px-5 py-4 font-bold text-slate-800">{member.user.displayName}<div className="text-[10px] font-normal text-slate-400">@{member.user.username}{self ? " · 当前用户" : ""}</div></td><td>{member.user.email || "—"}</td><td><select disabled={self || remote.isSaving} value={current} onChange={(e) => void run(() => remote.assignRole({ userId: member.user.id, roleCode: e.target.value }), "角色已更新")} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"><option value="" disabled>请选择角色</option>{assignableRoles.map((role) => <option key={role.id} value={role.code}>{role.name}</option>)}</select></td><td><button disabled={self} onClick={() => void run(() => remote.updateStatus({ userId: member.user.id, status: member.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" }), "成员状态已更新")} className={`rounded-full px-2.5 py-1 font-bold ${member.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{member.status === "ACTIVE" ? "正常" : "已停用"}</button></td><td className="text-slate-500">{member.user.lastLoginAt ? new Date(member.user.lastLoginAt).toLocaleString() : "从未登录"}</td></tr>; })}</tbody></table></div></section>
+    </div>}
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <MailPlus className="h-4 w-4 text-indigo-600" />
-          <div><h3 className="text-xs font-black text-slate-800">邀请新成员</h3><p className="text-[10px] text-slate-400">新成员通过一次性Token自行设置账号和密码</p></div>
-        </div>
-        <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
-          <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="member@company.com" type="email" className="rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-indigo-400" />
-          <select value={roleCode} onChange={(event) => setRoleCode(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white">
-            {roles.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
-          </select>
-          <button disabled={remote.isSaving} onClick={() => void createInvitation()} className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
-            <MailPlus className="h-3.5 w-3.5" />创建邀请
-          </button>
-        </div>
-      </div>
+    {tab === "groups" && <div className="grid min-h-[560px] gap-4 lg:grid-cols-[300px_1fr]">
+      <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 flex gap-2"><input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="新建用户组" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs"/><button disabled={groupName.trim().length < 2} onClick={() => void run(async () => { const group = await remote.createGroup({ name: groupName.trim() }); setGroupName(""); setSelectedGroupId(group.id); }, "用户组已创建")} className="rounded-lg bg-slate-900 p-2 text-white disabled:opacity-40"><Plus className="h-4 w-4"/></button></div><div className="space-y-2">{remote.groups.map((group) => <button key={group.id} onClick={() => setSelectedGroupId(group.id)} className={`w-full rounded-xl border p-3 text-left ${selectedGroup?.id === group.id ? "border-indigo-300 bg-indigo-50" : "border-slate-100 hover:bg-slate-50"}`}><div className="font-bold text-slate-800">{group.name}</div><div className="mt-1 text-[10px] text-slate-400">{group.members.length} 位成员</div></button>)}</div>{!remote.groups.length && <div className="py-12 text-center text-xs text-slate-400">暂无用户组</div>}</aside>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">{selectedGroup ? <><div className="flex items-start justify-between border-b border-slate-100 pb-4"><div><h3 className="text-base font-black text-slate-900">{selectedGroup.name}</h3><p className="mt-1 text-xs text-slate-400">集中维护成员，并分别配置组织与当前项目空间权限。</p></div><button onClick={() => void run(() => remote.deleteGroup(selectedGroup.id), "用户组已删除")} className="inline-flex items-center gap-1 text-xs font-bold text-rose-600"><Trash2 className="h-3.5 w-3.5"/>删除</button></div><div className="grid gap-5 py-5 md:grid-cols-2"><label className="space-y-2"><span className="text-xs font-bold text-slate-700">组织范围角色</span><select value={selectedGroup.roleBindings.find((b) => b.scopeType === "ORGANIZATION")?.role.code || ""} onChange={(e) => void run(() => remote.assignGroupRole({ groupId: selectedGroup.id, scopeType: "ORGANIZATION", roleCode: e.target.value || undefined }), e.target.value ? "组织角色已绑定" : "组织角色已解除")} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs"><option value="">未绑定</option>{assignableRoles.map((role) => <option key={role.id} value={role.code}>{role.name}</option>)}</select></label><label className="space-y-2"><span className="text-xs font-bold text-slate-700">{projectSpace.name} 角色</span><select value={selectedGroup.roleBindings.find((b) => b.projectSpaceId === projectSpace.id)?.role.code || ""} onChange={(e) => void run(() => remote.assignGroupRole({ groupId: selectedGroup.id, scopeType: "PROJECT_SPACE", projectSpaceId: projectSpace.id, roleCode: e.target.value || undefined }), e.target.value ? "空间角色已绑定" : "空间角色已解除")} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs"><option value="">未绑定</option>{remote.roles.filter((r) => r.code !== "org_admin").map((role) => <option key={role.id} value={role.code}>{role.name}</option>)}</select></label></div><h4 className="mb-3 text-xs font-black text-slate-800">组内成员</h4><div className="flex flex-wrap gap-2">{selectedGroup.members.map((item) => <button key={item.userId} onClick={() => void run(() => remote.removeGroupMember({ groupId: selectedGroup.id, userId: item.userId }), "成员已移出")} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-700">{item.user.displayName} ×</button>)}</div><select defaultValue="" onChange={(e) => { if (e.target.value) void run(() => remote.addGroupMember({ groupId: selectedGroup.id, userId: e.target.value }), "成员已加入"); e.target.value = ""; }} className="mt-4 rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="">＋ 添加组织成员</option>{remote.members.filter((m) => !selectedGroup.members.some((x) => x.userId === m.user.id)).map((m) => <option key={m.user.id} value={m.user.id}>{m.user.displayName}</option>)}</select></> : <div className="grid h-full place-items-center text-sm text-slate-400">创建或选择一个用户组</div>}</section>
+    </div>}
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3"><Users className="h-4 w-4 text-teal-600" /><h3 className="text-xs font-black text-slate-800">组织成员（{remote.members.length}）</h3></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead><tr className="text-[10px] uppercase text-slate-400"><th className="p-2">成员</th><th className="p-2">邮箱</th><th className="p-2">角色</th><th className="p-2">状态</th><th className="p-2">最近登录</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{remote.members.map((member) => {
-            const self = member.user.id === currentUser.id;
-            const currentRole = member.user.roleBindings[0]?.role.code || "viewer";
-            return <tr key={member.user.id}>
-              <td className="p-2 font-bold text-slate-800">{member.user.displayName}<div className="text-[10px] font-normal text-slate-400">@{member.user.username}{self ? " · 当前用户" : ""}</div></td>
-              <td className="p-2 text-slate-600">{member.user.email}</td>
-              <td className="p-2"><select disabled={self || remote.isSaving} value={currentRole} onChange={(event) => void run(() => remote.assignRole({ userId: member.user.id, roleCode: event.target.value }), "角色已更新")} className="rounded-lg border border-slate-200 px-2 py-1 bg-white disabled:opacity-60">{roles.map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></td>
-              <td className="p-2"><button disabled={self || remote.isSaving} onClick={() => void run(() => remote.updateStatus({ userId: member.user.id, status: member.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" }), "成员状态已更新")} className={`rounded-full border px-2 py-1 text-[10px] font-bold disabled:opacity-50 ${member.status === "ACTIVE" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{member.status === "ACTIVE" ? "正常" : "已停用"}</button></td>
-              <td className="p-2 text-[10px] text-slate-500">{member.user.lastLoginAt ? new Date(member.user.lastLoginAt).toLocaleString() : "从未登录"}</td>
-            </tr>;
-          })}</tbody></table></div>
-      </div>
+    {tab === "roles" && <div className="grid min-h-[620px] gap-4 lg:grid-cols-[300px_1fr]">
+      <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><button onClick={() => setSelectedRoleId("new")} className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white"><Plus className="h-4 w-4"/>新建自定义角色</button><div className="space-y-2">{remote.roles.map((role) => <button key={role.id} onClick={() => setSelectedRoleId(role.id)} className={`w-full rounded-xl border p-3 text-left ${selectedRole?.id === role.id ? "border-indigo-300 bg-indigo-50" : "border-slate-100 hover:bg-slate-50"}`}><div className="flex items-center justify-between"><span className="font-bold text-slate-800">{role.name}</span>{role.isSystem && <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700">系统必要</span>}</div><div className="mt-1 text-[10px] text-slate-400">{role.permissions.length} 项权限</div></button>)}</div></aside>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">{selectedRoleId ? <><div className="flex items-start justify-between border-b border-slate-100 pb-4"><div><h3 className="text-base font-black text-slate-900">{selectedRoleId === "new" ? "新建自定义角色" : selectedRole?.name}</h3><p className="mt-1 text-xs text-slate-400">系统必要角色只读；自定义角色可自由组合权限。</p></div>{selectedRole && !selectedRole.isSystem && <button onClick={() => void run(async () => { await remote.deleteRole(selectedRole.id); setSelectedRoleId(null); }, "角色已删除")} className="inline-flex items-center gap-1 text-xs font-bold text-rose-600"><Trash2 className="h-3.5 w-3.5"/>删除</button>}</div><div className="grid gap-4 py-5 md:grid-cols-2"><label className="space-y-2"><span className="text-xs font-bold text-slate-700">角色名称</span><input disabled={selectedRole?.isSystem} value={roleDraft.name} onChange={(e) => setRoleDraft({ ...roleDraft, name: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs disabled:bg-slate-50"/></label><label className="space-y-2"><span className="text-xs font-bold text-slate-700">角色说明</span><input disabled={selectedRole?.isSystem} value={roleDraft.description} onChange={(e) => setRoleDraft({ ...roleDraft, description: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs disabled:bg-slate-50"/></label></div><div className="space-y-4">{groupedPermissions.map(([module, permissions]) => <fieldset key={module} className="rounded-xl border border-slate-100 p-4"><legend className="px-2 text-xs font-black text-slate-800">{permissionModules[module] || module}</legend><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{permissions.map((permission) => <label key={permission.code} className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs text-slate-600 hover:bg-slate-50"><input type="checkbox" disabled={selectedRole?.isSystem} checked={roleDraft.permissionCodes.includes(permission.code)} onChange={(e) => setRoleDraft({ ...roleDraft, permissionCodes: e.target.checked ? [...roleDraft.permissionCodes, permission.code] : roleDraft.permissionCodes.filter((code) => code !== permission.code) })}/><span>{permission.description || permission.code}</span></label>)}</div></fieldset>)}</div>{!selectedRole?.isSystem && <div className="mt-5 flex justify-end"><button disabled={roleDraft.name.trim().length < 2} onClick={() => void saveRole()} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-40">保存角色与权限</button></div>}</> : <div className="grid h-full place-items-center text-sm text-slate-400">选择角色查看权限，或新建自定义角色</div>}</section>
+    </div>}
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3"><Users className="h-4 w-4 text-violet-600" /><div><h3 className="text-xs font-black text-slate-800">用户组</h3><p className="text-[10px] text-slate-400">用户组是成员集合，不等同于组织管理员或空间管理员角色。</p></div></div>
-        <div className="flex gap-2"><input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="用户组名称" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs" /><button disabled={remote.isSaving || groupName.trim().length < 2} onClick={() => void run(async () => { await remote.createGroup({ name: groupName.trim() }); setGroupName(""); }, "用户组已创建")} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">创建用户组</button></div>
-        {remote.groups.length === 0 ? <p className="py-4 text-center text-xs text-slate-400">暂无用户组</p> : remote.groups.map((group) => {
-          const available = remote.members.filter((member) => !group.members.some((item) => item.userId === member.user.id));
-          return <div key={group.id} className="rounded-xl border border-slate-100 p-3 space-y-2">
-            <div className="flex items-center justify-between"><div className="text-xs font-black text-slate-800">{group.name} <span className="font-normal text-slate-400">({group.members.length})</span></div><button onClick={() => void run(() => remote.deleteGroup(group.id), "用户组已删除")} className="text-[10px] font-bold text-rose-600">删除</button></div>
-            <div className="flex flex-wrap gap-2">{group.members.map((item) => <button key={item.userId} onClick={() => void run(() => remote.removeGroupMember({ groupId: group.id, userId: item.userId }), "成员已移出用户组")} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-600">{item.user.displayName} ×</button>)}</div>
-            {available.length > 0 && <select defaultValue="" onChange={(event) => { if (event.target.value) void run(() => remote.addGroupMember({ groupId: group.id, userId: event.target.value }), "成员已加入用户组"); event.target.value = ""; }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] bg-white"><option value="">添加成员…</option>{available.map((member) => <option key={member.user.id} value={member.user.id}>{member.user.displayName}</option>)}</select>}
-            <div className="grid gap-2 border-t border-slate-100 pt-2 sm:grid-cols-2">
-              <label className="space-y-1"><span className="text-[9px] font-bold text-slate-400">组织范围角色</span><select value={group.roleBindings.find((binding) => binding.scopeType === "ORGANIZATION")?.role.code || ""} onChange={(event) => { if (event.target.value) void run(() => remote.assignGroupRole({ groupId: group.id, scopeType: "ORGANIZATION", roleCode: event.target.value }), "组织角色已绑定"); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] bg-white"><option value="">未绑定</option>{remote.roles.filter((role) => role.code !== "space_admin").map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</select></label>
-              <label className="space-y-1"><span className="text-[9px] font-bold text-slate-400">{projectSpace.name} 角色</span><select value={group.roleBindings.find((binding) => binding.projectSpaceId === projectSpace.id)?.role.code || ""} onChange={(event) => { if (event.target.value) void run(() => remote.assignGroupRole({ groupId: group.id, scopeType: "PROJECT_SPACE", projectSpaceId: projectSpace.id, roleCode: event.target.value }), "项目空间角色已绑定"); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] bg-white"><option value="">未绑定</option>{remote.roles.filter((role) => role.code !== "org_admin").map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</select></label>
-            </div>
-          </div>;
-        })}
-      </div>
-
-      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
-        <div className="border-b border-slate-100 pb-3"><h3 className="text-xs font-black text-slate-800">角色权限矩阵</h3><p className="mt-1 text-[10px] text-slate-400">权限由系统角色模板提供，用户组在组织或项目空间范围绑定角色。</p></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead><tr className="text-[10px] uppercase text-slate-400"><th className="p-2">角色</th><th className="p-2">权限项</th></tr></thead><tbody className="divide-y divide-slate-100">{remote.roles.map((role) => <tr key={role.id}><td className="p-2 font-black text-slate-800">{role.name}<div className="font-mono text-[9px] font-normal text-slate-400">{role.code}</div></td><td className="p-2"><div className="flex flex-wrap gap-1.5">{role.permissions.map((item) => <span key={item.permission.code} className="rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 font-mono text-[9px] text-indigo-700">{item.permission.code}</span>)}</div></td></tr>)}</tbody></table></div>
-      </div>
-
-      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3"><ShieldCheck className="h-4 w-4 text-violet-600" /><h3 className="text-xs font-black text-slate-800">邀请记录（{remote.invitations.length}）</h3></div>
-        {remote.invitations.length === 0 ? <p className="py-5 text-center text-xs text-slate-400">暂无邀请</p> : remote.invitations.map((invitation) => {
-          const active = !invitation.acceptedAt && !invitation.revokedAt && new Date(invitation.expiresAt) > new Date();
-          return <div key={invitation.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 py-2">
-            <div className="min-w-0"><div className="truncate text-xs font-bold text-slate-700">{invitation.email}</div><div className="text-[10px] text-slate-400">{invitation.role.name} · 有效期至 {new Date(invitation.expiresAt).toLocaleString()}</div></div>
-            <div className="flex items-center gap-2">{invitation.acceptedAt ? <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600"><CheckCircle2 className="h-3 w-3" />已接受</span> : invitation.revokedAt ? <span className="text-[10px] font-bold text-slate-400">已撤销</span> : active ? <button disabled={remote.isSaving} onClick={() => void run(() => remote.revokeInvitation(invitation.id), "邀请已撤销")} className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600"><Trash2 className="h-3 w-3" />撤销</button> : <span className="text-[10px] font-bold text-amber-600">已过期</span>}</div>
-          </div>;
-        })}
-      </div>
-    </div>
-  );
+    {tab === "invitations" && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between"><div><h3 className="text-sm font-black text-slate-900">成员邀请</h3><p className="mt-1 text-xs text-slate-400">邀请新账号进入当前组织，角色可选择系统或自定义角色。</p></div><div className="flex gap-2"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="成员邮箱" className="rounded-xl border border-slate-200 px-3 py-2 text-xs"/><select value={inviteRoleCode} onChange={(e) => setInviteRoleCode(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs">{assignableRoles.map((role) => <option key={role.id} value={role.code}>{role.name}</option>)}</select><button disabled={!email.trim() || !inviteRoleCode} onClick={() => void createInvitation()} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-40"><MailPlus className="h-4 w-4"/>创建邀请</button></div></div>{created && <div className="m-4 rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="mb-2 text-xs font-bold text-amber-900">一次性激活 Token</div><div className="flex gap-2"><input readOnly value={created.activationToken} className="min-w-0 flex-1 rounded-lg border border-amber-200 px-3 py-2 font-mono text-xs"/><button onClick={() => void navigator.clipboard.writeText(created.activationToken)} className="rounded-lg bg-amber-700 px-3 text-white"><Copy className="h-4 w-4"/></button></div></div>}<div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-5 py-3">邮箱</th><th>角色</th><th>邀请人</th><th>有效期</th><th>状态</th><th>操作</th></tr></thead><tbody className="divide-y divide-slate-100">{remote.invitations.map((invitation) => { const active = !invitation.acceptedAt && !invitation.revokedAt && new Date(invitation.expiresAt) > new Date(); return <tr key={invitation.id}><td className="px-5 py-4 font-bold text-slate-800">{invitation.email}</td><td>{invitation.role.name}</td><td>{invitation.invitedBy.displayName}</td><td>{new Date(invitation.expiresAt).toLocaleString()}</td><td>{invitation.acceptedAt ? <span className="text-emerald-600">已接受</span> : invitation.revokedAt ? "已撤销" : active ? <span className="text-indigo-600">待激活</span> : <span className="text-amber-600">已过期</span>}</td><td>{active && <button onClick={() => void run(() => remote.revokeInvitation(invitation.id), "邀请已撤销")} className="text-rose-600">撤销</button>}</td></tr>; })}</tbody></table>{!remote.invitations.length && <div className="py-12 text-center text-xs text-slate-400">暂无邀请记录</div>}</div></section>}
+  </div>;
 }

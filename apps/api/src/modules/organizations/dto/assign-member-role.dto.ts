@@ -1,6 +1,6 @@
-import { IsIn } from "class-validator";
+import { IsString, Length } from "class-validator";
 
 export class AssignMemberRoleDto {
-  @IsIn(["org_admin", "developer", "tester", "viewer"])
-  roleCode!: "org_admin" | "developer" | "tester" | "viewer";
+  @IsString() @Length(2, 64)
+  roleCode!: string;
 }

@@ -8,6 +8,8 @@ import { UpdateOrganizationSettingsDto } from "./dto/update-organization-setting
 import { CreateUserGroupDto } from "./dto/create-user-group.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { AssignGroupRoleDto } from "./dto/assign-group-role.dto";
+import { CreateRoleDto } from "./dto/create-role.dto";
+import { UpdateRoleDto } from "./dto/update-role.dto";
 
 @Injectable()
 export class OrganizationsService {
@@ -212,8 +214,48 @@ export class OrganizationsService {
   listRoles(organizationId: string) {
     return this.prisma.role.findMany({
       where: { OR: [{ organizationId: null }, { organizationId }] },
-      select: { id: true, code: true, name: true, description: true, isSystem: true, permissions: { select: { permission: { select: { code: true, description: true } } } } },
+      select: { id: true, code: true, name: true, description: true, isSystem: true, version: true, permissions: { select: { permission: { select: { code: true, description: true } } } } },
       orderBy: [{ isSystem: "desc" }, { code: "asc" }],
+    });
+  }
+
+  listPermissions() {
+    return this.prisma.permission.findMany({ select: { code: true, description: true }, orderBy: { code: "asc" } });
+  }
+
+  async createRole(organizationId: string, actorId: string, dto: CreateRoleDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const permissions = await tx.permission.findMany({ where: { code: { in: dto.permissionCodes } }, select: { id: true, code: true } });
+      if (permissions.length !== dto.permissionCodes.length) throw new BadRequestException("包含不存在的权限项");
+      const role = await tx.role.create({ data: { organizationId, code: `custom_${randomBytes(8).toString("hex")}`, name: dto.name.trim(), description: dto.description?.trim() || null, permissions: { create: permissions.map((permission) => ({ permissionId: permission.id })) } }, include: { permissions: { include: { permission: true } } } });
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "role.create", resourceType: "Role", resourceId: role.id, metadata: { name: role.name, permissionCodes: dto.permissionCodes } } });
+      return role;
+    });
+  }
+
+  async updateRole(organizationId: string, roleId: string, actorId: string, dto: UpdateRoleDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const role = await tx.role.findFirst({ where: { id: roleId, organizationId }, select: { id: true, isSystem: true, version: true } });
+      if (!role) throw new NotFoundException("自定义角色不存在");
+      if (role.isSystem) throw new BadRequestException("系统管理角色不可修改");
+      if (role.version !== dto.version) throw new ConflictException("角色已被其他管理员修改，请刷新后重试");
+      const permissions = await tx.permission.findMany({ where: { code: { in: dto.permissionCodes } }, select: { id: true } });
+      if (permissions.length !== dto.permissionCodes.length) throw new BadRequestException("包含不存在的权限项");
+      await tx.rolePermission.deleteMany({ where: { roleId } });
+      const updated = await tx.role.update({ where: { id: roleId }, data: { name: dto.name.trim(), description: dto.description?.trim() || null, version: { increment: 1 }, permissions: { create: permissions.map((permission) => ({ permissionId: permission.id })) } }, include: { permissions: { include: { permission: true } } } });
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "role.update", resourceType: "Role", resourceId: roleId, metadata: { permissionCodes: dto.permissionCodes, version: updated.version } } });
+      return updated;
+    });
+  }
+
+  async deleteRole(organizationId: string, roleId: string, actorId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const role = await tx.role.findFirst({ where: { id: roleId, organizationId }, include: { _count: { select: { bindings: true, invitations: true } } } });
+      if (!role) throw new NotFoundException("自定义角色不存在");
+      if (role.isSystem) throw new BadRequestException("系统管理角色不可删除");
+      if (role._count.bindings || role._count.invitations) throw new ConflictException("角色正在被成员、群组或邀请使用，无法删除");
+      await tx.role.delete({ where: { id: roleId } });
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "role.delete", resourceType: "Role", resourceId: roleId } });
     });
   }
 
@@ -226,13 +268,13 @@ export class OrganizationsService {
     return this.prisma.$transaction(async (tx) => {
       const [group, role, space] = await Promise.all([
         tx.userGroup.findFirst({ where: { id: groupId, organizationId }, select: { id: true } }),
-        tx.role.findFirst({ where: { code: dto.roleCode, OR: [{ organizationId: null }, { organizationId }] }, select: { id: true } }),
+        dto.roleCode ? tx.role.findFirst({ where: { code: dto.roleCode, OR: [{ organizationId: null }, { organizationId }] }, select: { id: true } }) : Promise.resolve(null),
         dto.projectSpaceId ? tx.projectSpace.findFirst({ where: { id: dto.projectSpaceId, organizationId, archivedAt: null }, select: { id: true } }) : Promise.resolve(null),
       ]);
-      if (!group || !role || (!organizationScope && !space)) throw new NotFoundException("Group, role or project space not found");
+      if (!group || (dto.roleCode && !role) || (!organizationScope && !space)) throw new NotFoundException("Group, role or project space not found");
       await tx.roleBinding.deleteMany({ where: { groupId, organizationId, scopeType: dto.scopeType, projectSpaceId: dto.projectSpaceId ?? null } });
-      const binding = await tx.roleBinding.create({ data: { roleId: role.id, subjectType: SubjectType.GROUP, groupId, scopeType: dto.scopeType, organizationId, projectSpaceId: dto.projectSpaceId ?? null } });
-      await tx.auditLog.create({ data: { organizationId, projectSpaceId: dto.projectSpaceId, actorId, action: "group.role.assign", resourceType: "RoleBinding", resourceId: binding.id, metadata: { groupId, roleCode: dto.roleCode, scopeType: dto.scopeType } } });
+      const binding = role ? await tx.roleBinding.create({ data: { roleId: role.id, subjectType: SubjectType.GROUP, groupId, scopeType: dto.scopeType, organizationId, projectSpaceId: dto.projectSpaceId ?? null } }) : null;
+      await tx.auditLog.create({ data: { organizationId, projectSpaceId: dto.projectSpaceId, actorId, action: role ? "group.role.assign" : "group.role.remove", resourceType: "UserGroup", resourceId: groupId, metadata: { groupId, roleCode: dto.roleCode ?? null, scopeType: dto.scopeType } } });
       return binding;
     });
   }
