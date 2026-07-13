@@ -30,6 +30,11 @@ enum RoleScope {
   PROJECT_SPACE
 }
 
+enum ResourceStatus {
+  ACTIVE
+  DISABLED
+}
+
 enum IdentityProviderType {
   OIDC
   SAML
@@ -186,6 +191,7 @@ model Organization {
   slug              String                   @unique @db.VarChar(64)
   name              String                   @db.VarChar(160)
   version           Int                      @default(1)
+  status            ResourceStatus           @default(ACTIVE)
   createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
   members           OrganizationMember[]
@@ -238,6 +244,7 @@ model ProjectSpace {
   name            String           @db.VarChar(160)
   description     String?          @db.Text
   version         Int              @default(1)
+  status          ResourceStatus   @default(ACTIVE)
   archivedAt      DateTime?        @map("archived_at") @db.Timestamptz(3)
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)

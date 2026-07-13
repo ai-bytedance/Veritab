@@ -26,7 +26,7 @@ export class OrganizationsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { isSystemAdmin: true } });
     return this.prisma.organization.findMany({
       where: user?.isSystemAdmin ? {} : { members: { some: { userId, status: "ACTIVE" } } },
-      select: { id: true, slug: true, name: true, version: true, createdAt: true, updatedAt: true, _count: { select: { members: true, projectSpaces: true } } },
+      select: { id: true, slug: true, name: true, status: true, version: true, createdAt: true, updatedAt: true, auditLogs: { where: { action: "organization.create" }, take: 1, orderBy: { createdAt: "asc" }, select: { actor: { select: { id: true, displayName: true, username: true } } } }, _count: { select: { members: true, projectSpaces: { where: { archivedAt: null } } } } },
       orderBy: { name: "asc" },
     });
   }
@@ -64,11 +64,22 @@ export class OrganizationsService {
 
   async update(organizationId: string, actorId: string, dto: UpdateOrganizationDto) {
     return this.prisma.$transaction(async (tx) => {
-      const changed = await tx.organization.updateMany({ where: { id: organizationId, version: dto.version }, data: { name: dto.name.trim(), version: { increment: 1 } } });
+      const changed = await tx.organization.updateMany({ where: { id: organizationId, version: dto.version }, data: { name: dto.name.trim(), ...(dto.status ? { status: dto.status } : {}), version: { increment: 1 } } });
       if (!changed.count) throw new ConflictException("Organization was modified by another administrator");
-      const organization = await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { id: true, slug: true, name: true, version: true, createdAt: true, updatedAt: true } });
+      const organization = await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { id: true, slug: true, name: true, status: true, version: true, createdAt: true, updatedAt: true } });
       await tx.auditLog.create({ data: { organizationId, actorId, action: "organization.update", resourceType: "Organization", resourceId: organizationId, metadata: { version: organization.version } } });
       return organization;
+    });
+  }
+
+  async delete(organizationId: string, actorId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.findUnique({ where: { id: organizationId }, select: { slug: true, _count: { select: { projectSpaces: { where: { archivedAt: null } } } } } });
+      if (!organization) throw new NotFoundException("组织不存在");
+      if (organization.slug === "default") throw new BadRequestException("默认组织不可删除");
+      if (organization._count.projectSpaces) throw new ConflictException("请先删除该组织下的项目空间");
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "organization.delete", resourceType: "Organization", resourceId: organizationId } });
+      await tx.organization.delete({ where: { id: organizationId } });
     });
   }
 

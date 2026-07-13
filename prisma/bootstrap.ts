@@ -51,6 +51,10 @@ async function main(): Promise<void> {
     await tx.roleBinding.create({ data: { roleId: adminRole!.id, subjectType: SubjectType.USER, userId: user.id, scopeType: ScopeType.ORGANIZATION, organizationId: organization.id } });
     const projectSpace = await tx.projectSpace.create({ data: { organizationId: organization.id, key: projectKey, name: projectName } });
     await tx.projectMember.create({ data: { projectSpaceId: projectSpace.id, userId: user.id } });
+    await tx.auditLog.createMany({ data: [
+      { organizationId: organization.id, actorId: user.id, action: "organization.create", resourceType: "Organization", resourceId: organization.id },
+      { organizationId: organization.id, projectSpaceId: projectSpace.id, actorId: user.id, action: "space.create", resourceType: "ProjectSpace", resourceId: projectSpace.id },
+    ] });
     return { userId: user.id, organizationId: organization.id, projectSpaceId: projectSpace.id };
   });
 

@@ -56,6 +56,13 @@ export class ProjectSpacesController {
     return this.spaces.update(organizationId, projectSpaceId, userId, dto);
   }
 
+  @Delete(":projectSpaceId")
+  @RequirePermissions("space.manage")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  delete(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string, @CurrentUser("userId") actorId: string) {
+    return this.spaces.delete(organizationId, projectSpaceId, actorId);
+  }
+
   @Get(":projectSpaceId/members") @RequirePermissions("member.read")
   listMembers(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string) { return this.spaces.listMembers(organizationId, projectSpaceId); }
 

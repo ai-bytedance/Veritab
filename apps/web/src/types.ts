@@ -82,6 +82,10 @@ export interface Project {
   repoUrl: string;
   createdAt: string;
   version: number;
+  status?: "ACTIVE" | "DISABLED";
+  organization?: { id: string; name: string };
+  auditLogs?: Array<{ actor: { id: string; displayName: string; username: string } | null }>;
+  _count?: { members: number };
   serviceProvider?: string; // 服务供应商
 }
 

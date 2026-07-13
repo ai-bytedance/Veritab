@@ -35,14 +35,16 @@ interface SystemConfigPanelProps {
   notificationApiScope: RequirementApiScope;
   organization: OrganizationSummary;
   activeProject: Project;
-  onUpdateOrganization: (name: string) => Promise<void>;
-  onUpdateProject: (input: { name: string; description: string }) => Promise<void>;
+  onUpdateOrganization: (name: string, status?: "ACTIVE" | "DISABLED") => Promise<void>;
+  onUpdateProject: (input: { name: string; description: string; status?: "ACTIVE" | "DISABLED" }) => Promise<void>;
   projects: Project[];
   onSelectProject: (id: string) => void;
-  onCreateProject: (input: { name: string; key: string; description: string }) => Promise<void>;
+  onCreateProject: (input: { name: string; description: string }) => Promise<void>;
+  onDeleteProject: (id: string) => Promise<void>;
   organizations: OrganizationSummary[];
   onSelectOrganization: (id: string) => void;
   onCreateOrganization: (name: string) => Promise<void>;
+  onDeleteOrganization: (id: string) => Promise<void>;
 }
 
 export default function SystemConfigPanel({
@@ -60,6 +62,8 @@ export default function SystemConfigPanel({
   organizations,
   onSelectOrganization,
   onCreateOrganization,
+  onDeleteOrganization,
+  onDeleteProject,
 }: SystemConfigPanelProps) {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -208,7 +212,7 @@ export default function SystemConfigPanel({
       </div>
 
       {settingsTab === "project" && (
-        <OrganizationSpaceSettings organization={organization} organizations={organizations} project={activeProject} projects={projects} currentUser={currentUser} onSelectOrganization={onSelectOrganization} onCreateOrganization={onCreateOrganization} onSelectProject={onSelectProject} onCreateProject={onCreateProject} onUpdateOrganization={onUpdateOrganization} onUpdateProject={onUpdateProject} showToast={showToast} />
+        <OrganizationSpaceSettings organization={organization} organizations={organizations} project={activeProject} projects={projects} currentUser={currentUser} onSelectOrganization={onSelectOrganization} onCreateOrganization={onCreateOrganization} onDeleteOrganization={onDeleteOrganization} onSelectProject={onSelectProject} onCreateProject={onCreateProject} onDeleteProject={onDeleteProject} onUpdateOrganization={onUpdateOrganization} onUpdateProject={onUpdateProject} showToast={showToast} />
       )}
 
       {settingsTab === "prompt" && (

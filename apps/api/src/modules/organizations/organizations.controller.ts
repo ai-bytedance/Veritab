@@ -37,6 +37,13 @@ export class OrganizationsController {
     return this.organizations.update(organizationId, actorId, dto);
   }
 
+  @Delete(":organizationId")
+  @RequirePermissions("organization.manage")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  delete(@Param("organizationId", ParseUUIDPipe) organizationId: string, @CurrentUser("userId") actorId: string) {
+    return this.organizations.delete(organizationId, actorId);
+  }
+
   @Get(":organizationId/settings")
   @RequirePermissions("space.read")
   @ApiOperation({ summary: "Get non-secret organization settings" })

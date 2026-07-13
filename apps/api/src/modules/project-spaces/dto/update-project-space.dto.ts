@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsInt, IsOptional, IsString, Length, Min } from "class-validator";
+import { IsEnum, IsInt, IsOptional, IsString, Length, Min } from "class-validator";
+import { ResourceStatus } from "@prisma/client";
 
 export class UpdateProjectSpaceDto {
   @ApiProperty({ minimum: 1, description: "Current optimistic-lock version" })
@@ -18,4 +19,9 @@ export class UpdateProjectSpaceDto {
   @IsString()
   @Length(0, 2000)
   description?: string;
+
+  @ApiPropertyOptional({ enum: ResourceStatus })
+  @IsOptional()
+  @IsEnum(ResourceStatus)
+  status?: ResourceStatus;
 }

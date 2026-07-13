@@ -14,7 +14,7 @@ export class ProjectSpacesService {
   list(organizationId: string, userId: string) {
     return this.prisma.projectSpace.findMany({
       where: { organizationId, archivedAt: null, members: { some: { userId, status: "ACTIVE" } } },
-      select: { id: true, key: true, name: true, description: true, version: true, createdAt: true, updatedAt: true },
+      select: { id: true, key: true, name: true, description: true, status: true, version: true, createdAt: true, updatedAt: true, organization: { select: { id: true, name: true } }, auditLogs: { where: { action: "space.create" }, take: 1, orderBy: { createdAt: "asc" }, select: { actor: { select: { id: true, displayName: true, username: true } } } }, _count: { select: { members: true } } },
       orderBy: { updatedAt: "desc" },
     });
   }
@@ -22,19 +22,16 @@ export class ProjectSpacesService {
   async get(organizationId: string, projectSpaceId: string) {
     const space = await this.prisma.projectSpace.findFirst({
       where: { id: projectSpaceId, organizationId, archivedAt: null },
-      select: { id: true, key: true, name: true, description: true, version: true, createdAt: true, updatedAt: true },
+      select: { id: true, key: true, name: true, description: true, status: true, version: true, createdAt: true, updatedAt: true },
     });
     if (!space) throw new NotFoundException("Project space not found");
     return space;
   }
 
   async create(organizationId: string, actorId: string, dto: CreateProjectSpaceDto) {
-    const existing = await this.prisma.projectSpace.findUnique({
-      where: { organizationId_key: { organizationId, key: dto.key } },
-    });
-    if (existing) throw new ConflictException("Project key is already in use in this organization");
+    const key = `P${randomBytes(5).toString("hex").toUpperCase()}`;
     return this.prisma.$transaction(async (tx) => {
-      const space = await tx.projectSpace.create({ data: { organizationId, ...dto } });
+      const space = await tx.projectSpace.create({ data: { organizationId, key, ...dto } });
       await tx.projectMember.create({ data: { projectSpaceId: space.id, userId: actorId } });
       const adminRole = await tx.role.findFirst({ where: { code: "space_admin", organizationId: null }, select: { id: true } });
       if (!adminRole) throw new NotFoundException("项目空间管理员角色不存在");
@@ -67,6 +64,7 @@ export class ProjectSpacesService {
         data: {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
           ...(dto.description !== undefined ? { description: dto.description.trim() || null } : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
           version: { increment: 1 },
         },
         select: { id: true, key: true, name: true, description: true, version: true, createdAt: true, updatedAt: true },
@@ -83,6 +81,15 @@ export class ProjectSpacesService {
         },
       });
       return updated;
+    });
+  }
+
+  async delete(organizationId: string, projectSpaceId: string, actorId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const space = await tx.projectSpace.findFirst({ where: { id: projectSpaceId, organizationId, archivedAt: null }, select: { id: true } });
+      if (!space) throw new NotFoundException("项目空间不存在");
+      await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId, action: "space.delete", resourceType: "ProjectSpace", resourceId: projectSpaceId } });
+      await tx.projectSpace.update({ where: { id: projectSpaceId }, data: { archivedAt: new Date(), status: "DISABLED", version: { increment: 1 } } });
     });
   }
 

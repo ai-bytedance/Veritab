@@ -1,4 +1,5 @@
-import { IsInt, IsString, Length, Min } from "class-validator";
+import { IsEnum, IsInt, IsOptional, IsString, Length, Min } from "class-validator";
+import { ResourceStatus } from "@prisma/client";
 
 export class UpdateOrganizationDto {
   @IsInt()
@@ -8,4 +9,8 @@ export class UpdateOrganizationDto {
   @IsString()
   @Length(2, 160)
   name!: string;
+
+  @IsOptional()
+  @IsEnum(ResourceStatus)
+  status?: ResourceStatus;
 }

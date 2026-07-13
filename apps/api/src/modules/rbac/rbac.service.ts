@@ -21,15 +21,17 @@ export class RbacService {
           userId: context.userId,
         },
       },
-      select: { status: true },
+      select: { status: true, organization: { select: { status: true } } },
     });
     if (organizationMember?.status !== MembershipStatus.ACTIVE) return false;
+    if (organizationMember.organization?.status === "DISABLED" && !required.includes("organization.manage")) return false;
     if (context.projectSpaceId) {
       const membership = await this.prisma.projectMember.findFirst({
         where: { projectSpaceId: context.projectSpaceId, userId: context.userId, status: MembershipStatus.ACTIVE, projectSpace: { organizationId: context.organizationId, archivedAt: null } },
-        select: { userId: true },
+        select: { userId: true, projectSpace: { select: { status: true } } },
       });
       if (!membership) return false;
+      if (membership.projectSpace?.status === "DISABLED" && !required.includes("space.manage")) return false;
     }
 
     const bindings = await this.prisma.roleBinding.findMany({

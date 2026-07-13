@@ -24,6 +24,8 @@ import OrganizationSetup from "./components/OrganizationSetup";
 import ProjectSpaceSetup from "./components/ProjectSpaceSetup";
 import { OrganizationSummary } from "./components/OrganizationSpaceSettings";
 
+interface ProjectSpaceResponse { id: string; key: string; name: string; description: string | null; status: "ACTIVE" | "DISABLED"; version: number; createdAt: string; organization?: { id: string; name: string }; auditLogs?: Project["auditLogs"]; _count?: { members: number } }
+
 const ProjectSpace = lazy(() => import("./components/ProjectSpace"));
 const RequirementsBoard = lazy(() => import("./components/RequirementsBoard"));
 const DefectsBoard = lazy(() => import("./components/DefectsBoard"));
@@ -130,8 +132,8 @@ export default function App() {
         if (!organization) return undefined;
         setOrganizationId(organization.id);
         setOrganization(organization);
-        const spaces = await apiRequest<Array<{ id: string; key: string; name: string; description: string | null; version: number; createdAt: string }>>(`/organizations/${organization.id}/spaces`);
-        setProjects(spaces.map((space) => ({ id: space.id, key: space.key, name: space.name, description: space.description || "", repoType: "none", repoUrl: "", version: space.version, createdAt: space.createdAt })));
+        const spaces = await apiRequest<ProjectSpaceResponse[]>(`/organizations/${organization.id}/spaces`);
+        setProjects(spaces.map((space) => ({ ...space, description: space.description || "", repoType: "none", repoUrl: "" })));
         if (spaces[0]) setSelectedProjectId(spaces[0].id);
         return spaces[0] ? { organizationId: organization.id, projectSpaceId: spaces[0].id } : undefined;
       })
@@ -318,9 +320,9 @@ export default function App() {
   // Helper actions
 
   const activeProject = projects.find((p) => p.id === selectedProjectId);
-  const handleUpdateActiveProject = async (input: { name: string; description: string }) => {
+  const handleUpdateActiveProject = async (input: { name: string; description: string; status?: "ACTIVE" | "DISABLED" }) => {
     if (!requirementApiScope || !activeProject) throw new Error("当前空间上下文不可用。");
-    const updated = await apiRequest<{ id: string; name: string; description: string | null; version: number; createdAt: string }>(
+    const updated = await apiRequest<{ id: string; name: string; description: string | null; status: "ACTIVE" | "DISABLED"; version: number; createdAt: string }>(
       `/organizations/${requirementApiScope.organizationId}/spaces/${requirementApiScope.projectSpaceId}`,
       { method: "PATCH", body: JSON.stringify({ ...input, version: activeProject.version }) },
     );
@@ -328,23 +330,29 @@ export default function App() {
       ...project,
       name: updated.name,
       description: updated.description || "",
+      status: updated.status,
       version: updated.version,
     } : project));
   };
-  const handleUpdateOrganization = async (name: string) => {
+  const handleUpdateOrganization = async (name: string, status?: "ACTIVE" | "DISABLED") => {
     if (!organization) throw new Error("当前组织上下文不可用。");
     const updated = await apiRequest<OrganizationSummary>(`/organizations/${organization.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ name, version: organization.version }),
+      body: JSON.stringify({ name, status, version: organization.version }),
     });
     setOrganization(updated);
     setOrganizations((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
   };
+  const handleDeleteOrganization = async (id: string) => {
+    await apiRequest(`/organizations/${id}`, { method: "DELETE" });
+    const remaining = organizations.filter((item) => item.id !== id); setOrganizations(remaining);
+    if (organizationId === id && remaining[0]) await handleOrganizationChange(remaining[0].id);
+  };
   const handleOrganizationChange = async (id: string) => {
     const selected = organizations.find((item) => item.id === id);
     if (!selected) return;
-    const spaces = await apiRequest<Array<{ id: string; key: string; name: string; description: string | null; version: number; createdAt: string }>>(`/organizations/${id}/spaces`);
-    const mapped = spaces.map((space) => ({ id: space.id, key: space.key, name: space.name, description: space.description || "", repoType: "none" as const, repoUrl: "", version: space.version, createdAt: space.createdAt }));
+    const spaces = await apiRequest<ProjectSpaceResponse[]>(`/organizations/${id}/spaces`);
+    const mapped = spaces.map((space) => ({ ...space, description: space.description || "", repoType: "none" as const, repoUrl: "" }));
     setOrganization(selected); setOrganizationId(id); setProjects(mapped);
     if (mapped[0]) handleProjectChangeForOrganization(id, mapped[0].id); else { setSelectedProjectId(""); setRequirementApiScope(undefined); }
   };
@@ -361,12 +369,18 @@ export default function App() {
     if (organizationId) setRequirementApiScope({ organizationId, projectSpaceId });
     setFocusedTestCaseId(null);
   };
-  const handleCreateProject = async (input: { name: string; key: string; description: string }) => {
+  const handleCreateProject = async (input: { name: string; description: string }) => {
     if (!organizationId) throw new Error("当前组织上下文不可用。");
-    const space = await apiRequest<{ id: string; key: string; name: string; description: string | null; version: number; createdAt: string }>(`/organizations/${organizationId}/spaces`, { method: "POST", body: JSON.stringify(input) });
-    const project: Project = { id: space.id, key: space.key, name: space.name, description: space.description || "", repoType: "none", repoUrl: "", version: space.version, createdAt: space.createdAt };
+    const space = await apiRequest<ProjectSpaceResponse>(`/organizations/${organizationId}/spaces`, { method: "POST", body: JSON.stringify(input) });
+    const project: Project = { ...space, description: space.description || "", repoType: "none", repoUrl: "" };
     setProjects((current) => [...current, project]);
     handleProjectChange(project.id);
+  };
+  const handleDeleteProject = async (id: string) => {
+    if (!organizationId) return;
+    await apiRequest(`/organizations/${organizationId}/spaces/${id}`, { method: "DELETE" });
+    const remaining = projects.filter((item) => item.id !== id); setProjects(remaining);
+    if (selectedProjectId === id && remaining[0]) handleProjectChange(remaining[0].id);
   };
   const connectedRepository = requirementApiScope ? gitIntegration.repository : undefined;
   const displayedRepositoryType = connectedRepository
@@ -569,10 +583,12 @@ export default function App() {
                   organization={organization!}
                   activeProject={activeProject}
                   onUpdateOrganization={handleUpdateOrganization}
+                  onDeleteOrganization={handleDeleteOrganization}
                   onUpdateProject={handleUpdateActiveProject}
                   projects={projects}
                   onSelectProject={handleProjectChange}
                   onCreateProject={handleCreateProject}
+                  onDeleteProject={handleDeleteProject}
                   organizations={organizations}
                   onSelectOrganization={(id) => void handleOrganizationChange(id)}
                   onCreateOrganization={handleCreateOrganization}

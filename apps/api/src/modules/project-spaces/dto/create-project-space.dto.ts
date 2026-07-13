@@ -1,13 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsString, Length, Matches } from "class-validator";
+import { IsOptional, IsString, Length } from "class-validator";
 
 export class CreateProjectSpaceDto {
-  @ApiProperty({ example: "VT" })
-  @IsString()
-  @Length(2, 16)
-  @Matches(/^[A-Z][A-Z0-9]*$/)
-  key!: string;
-
   @ApiProperty({ example: "Veritab Platform" })
   @IsString()
   @Length(2, 160)
