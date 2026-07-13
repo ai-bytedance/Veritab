@@ -11,9 +11,10 @@ import { UpdateRoleDto } from "../organizations/dto/update-role.dto";
 export class ProjectSpacesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(organizationId: string, userId: string) {
+  async list(organizationId: string, userId: string) {
+    const administrator = await this.prisma.user.findFirst({ where: { id: userId, OR: [{ isSystemAdmin: true }, { roleBindings: { some: { organizationId, scopeType: ScopeType.ORGANIZATION, role: { code: "org_admin" } } } }] }, select: { id: true } });
     return this.prisma.projectSpace.findMany({
-      where: { organizationId, archivedAt: null, members: { some: { userId, status: "ACTIVE" } } },
+      where: { organizationId, archivedAt: null, ...(administrator ? {} : { members: { some: { userId, status: "ACTIVE" } } }) },
       select: { id: true, key: true, name: true, description: true, status: true, version: true, createdAt: true, updatedAt: true, organization: { select: { id: true, name: true } }, auditLogs: { where: { action: "space.create" }, take: 1, orderBy: { createdAt: "asc" }, select: { actor: { select: { id: true, displayName: true, username: true } } } }, _count: { select: { members: true } } },
       orderBy: { updatedAt: "desc" },
     });

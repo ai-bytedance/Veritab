@@ -107,6 +107,29 @@ export class UsersService {
     }
   }
 
+  async resetPassword(actorId: string, userId: string, password: string) {
+    await this.assertSystemAdmin(actorId);
+    const organizationId = await this.auditOrganization(actorId);
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) throw new NotFoundException("用户不存在");
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await argon2.hash(password, { type: argon2.argon2id }), tokenVersion: { increment: 1 }, version: { increment: 1 } } });
+    await this.prisma.auditLog.create({ data: { organizationId, actorId, action: "system.user.password.reset", resourceType: "User", resourceId: userId } });
+    return { userId };
+  }
+
+  async delete(actorId: string, userId: string): Promise<void> {
+    await this.assertSystemAdmin(actorId);
+    if (actorId === userId) throw new BadRequestException("不能删除当前登录账号");
+    const organizationId = await this.auditOrganization(actorId);
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { isSystemAdmin: true } });
+    if (!user) throw new NotFoundException("用户不存在");
+    if (user.isSystemAdmin) throw new BadRequestException("默认系统管理员账号不可删除");
+    await this.prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({ data: { organizationId, actorId, action: "system.user.delete", resourceType: "User", resourceId: userId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+  }
+
   private async assertSystemAdmin(userId: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { isSystemAdmin: true, status: true } });
     if (!user?.isSystemAdmin || user.status !== UserStatus.ACTIVE) throw new ForbiddenException("System administrator access is required");

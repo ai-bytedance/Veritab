@@ -14,6 +14,8 @@ export class RbacService {
 
   async hasAllPermissions(context: AuthorizationContext, required: string[]): Promise<boolean> {
     if (required.length === 0) return true;
+    const systemAdministrator = await this.prisma.user.findFirst({ where: { id: context.userId, isSystemAdmin: true, status: "ACTIVE" }, select: { id: true } });
+    if (systemAdministrator) return true;
     const organizationMember = await this.prisma.organizationMember.findUnique({
       where: {
         organizationId_userId: {

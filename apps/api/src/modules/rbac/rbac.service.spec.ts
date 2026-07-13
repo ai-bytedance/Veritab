@@ -4,6 +4,7 @@ import { RbacService } from "./rbac.service";
 
 describe("RbacService", () => {
   const prisma = {
+    user: { findFirst: jest.fn() },
     organizationMember: { findUnique: jest.fn() },
     projectMember: { findFirst: jest.fn() },
     roleBinding: { findMany: jest.fn() },
@@ -12,6 +13,7 @@ describe("RbacService", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    prisma.user.findFirst.mockResolvedValue(null);
     prisma.organizationMember.findUnique.mockResolvedValue({ status: MembershipStatus.ACTIVE });
     prisma.projectMember.findFirst.mockResolvedValue({ userId: "user-1" });
   });
