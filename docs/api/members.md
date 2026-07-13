@@ -1,9 +1,7 @@
-# Organization members and invitations
+# 组织与项目成员
 
-Authenticated organization administrators can list members, update membership status, assign a direct organization role, create invitations, list invitation metadata, and revoke unused invitations under `/api/v1/organizations/:organizationId`.
+系统注册账号由系统管理员统一维护。账号加入组织后具有唯一组织归属，不允许跨组织复用。
 
-Invitation activation is public at `POST /api/v1/auth/invitations/accept`. The raw activation token is returned only by the invitation creation response; PostgreSQL stores only its SHA-256 hash. Tokens expire after 24 hours by default, can be configured from 1 to 168 hours, are single-use, and cannot be used after revocation.
+组织管理员可维护组织成员状态和组织全局角色。项目空间管理员从组织成员池添加项目成员，并为成员绑定一个或多个可用角色；项目权限在服务端合并计算。
 
-Invitation tokens are intentionally not sent by the generic project notification worker. The administrator must deliver the one-time activation token through an approved identity or invitation channel. Tokens must never be written to logs, audit metadata, analytics, or URLs accessible to third-party referrers.
-
-Self-suspension and self-demotion are rejected to prevent an organization administrator from locking themselves out. All successful status, role, invitation creation, invitation revocation, and invitation acceptance operations create audit records.
+成员必须处于有效组织成员和有效项目成员状态，才能访问对应项目空间的需求、缺陷、用例、文件及集成数据。成员、角色和状态变更均写入审计日志。

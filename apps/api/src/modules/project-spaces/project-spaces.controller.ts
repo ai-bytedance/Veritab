@@ -9,7 +9,6 @@ import { AddProjectMemberDto } from "./dto/add-project-member.dto";
 import { SetProjectMemberRolesDto } from "./dto/set-project-member-roles.dto";
 import { CreateRoleDto } from "../organizations/dto/create-role.dto";
 import { UpdateRoleDto } from "../organizations/dto/update-role.dto";
-import { CreateProjectInvitationDto } from "./dto/create-project-invitation.dto";
 
 @ApiTags("Project spaces")
 @ApiBearerAuth()
@@ -78,12 +77,4 @@ export class ProjectSpacesController {
   @Patch(":projectSpaceId/roles/:roleId") @RequirePermissions("member.manage")
   updateRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string, @Param("roleId", ParseUUIDPipe) roleId: string, @CurrentUser("userId") actorId: string, @Body() dto: UpdateRoleDto) { return this.spaces.updateRole(organizationId, projectSpaceId, roleId, actorId, dto); }
 
-  @Get(":projectSpaceId/invitations") @RequirePermissions("member.read")
-  listInvitations(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string) { return this.spaces.listInvitations(organizationId, projectSpaceId); }
-
-  @Post(":projectSpaceId/invitations") @RequirePermissions("member.manage")
-  createInvitation(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string, @CurrentUser("userId") actorId: string, @Body() dto: CreateProjectInvitationDto) { return this.spaces.createInvitation(organizationId, projectSpaceId, actorId, dto.userId, dto.roleIds); }
-
-  @Post(":projectSpaceId/invitations/:invitationId/accept")
-  acceptInvitation(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("projectSpaceId", ParseUUIDPipe) projectSpaceId: string, @Param("invitationId", ParseUUIDPipe) invitationId: string, @CurrentUser("userId") userId: string) { return this.spaces.acceptInvitation(organizationId, projectSpaceId, invitationId, userId); }
 }

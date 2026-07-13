@@ -4,7 +4,6 @@ import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../../common/decorators/permissions.decorator";
 import { AssignMemberRoleDto } from "./dto/assign-member-role.dto";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
-import { CreateMemberInvitationDto } from "./dto/create-member-invitation.dto";
 import { UpdateMemberStatusDto } from "./dto/update-member-status.dto";
 import { OrganizationsService } from "./organizations.service";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
@@ -122,33 +121,4 @@ export class OrganizationsController {
     return this.organizations.deleteRole(organizationId, roleId, actorId);
   }
 
-  @Get(":organizationId/invitations")
-  @RequirePermissions("member.read")
-  @ApiOperation({ summary: "List organization member invitations without token material" })
-  listInvitations(@Param("organizationId", ParseUUIDPipe) organizationId: string) {
-    return this.organizations.listInvitations(organizationId);
-  }
-
-  @Post(":organizationId/invitations")
-  @RequirePermissions("member.manage")
-  @ApiOperation({ summary: "Create a one-time member invitation" })
-  createInvitation(
-    @Param("organizationId", ParseUUIDPipe) organizationId: string,
-    @CurrentUser("userId") actorId: string,
-    @Body() dto: CreateMemberInvitationDto,
-  ) {
-    return this.organizations.createInvitation(organizationId, actorId, dto);
-  }
-
-  @Delete(":organizationId/invitations/:invitationId")
-  @RequirePermissions("member.manage")
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Revoke an unused member invitation" })
-  revokeInvitation(
-    @Param("organizationId", ParseUUIDPipe) organizationId: string,
-    @Param("invitationId", ParseUUIDPipe) invitationId: string,
-    @CurrentUser("userId") actorId: string,
-  ) {
-    return this.organizations.revokeInvitation(organizationId, invitationId, actorId);
-  }
 }

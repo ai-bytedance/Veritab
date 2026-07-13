@@ -14,20 +14,5 @@ export interface ApiOrganizationMember {
   };
 }
 
-export interface ApiOrganizationInvitation {
-  id: string;
-  email: string;
-  expiresAt: string;
-  acceptedAt: string | null;
-  revokedAt: string | null;
-  createdAt: string;
-  role: { code: string; name: string };
-  invitedBy: { id: string; displayName: string };
-}
-
-export interface CreatedInvitation extends Omit<ApiOrganizationInvitation, "acceptedAt" | "revokedAt" | "invitedBy"> {
-  activationToken: string;
-}
-
 export interface ApiPermission { code: string; description: string | null }
 export interface ApiRole { id: string; code: string; name: string; description: string | null; isSystem: boolean; version: number; scope: "ORGANIZATION" | "PROJECT_SPACE"; projectSpaceId: string | null; permissions: Array<{ permission: ApiPermission }> }

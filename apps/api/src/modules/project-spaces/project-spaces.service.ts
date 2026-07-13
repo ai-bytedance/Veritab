@@ -149,31 +149,4 @@ export class ProjectSpacesService {
     });
   }
 
-  listInvitations(organizationId: string, projectSpaceId: string) {
-    return this.prisma.projectInvitation.findMany({ where: { projectSpaceId, projectSpace: { organizationId } }, select: { id: true, roleIds: true, acceptedAt: true, revokedAt: true, expiresAt: true, createdAt: true, user: { select: { id: true, username: true, displayName: true } }, invitedBy: { select: { id: true, displayName: true } } }, orderBy: { createdAt: "desc" } });
-  }
-
-  async createInvitation(organizationId: string, projectSpaceId: string, actorId: string, userId: string, roleIds: string[]) {
-    return this.prisma.$transaction(async (tx) => {
-      const member = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId, userId } }, select: { status: true } });
-      const roles = await tx.role.findMany({ where: { id: { in: roleIds }, OR: [{ organizationId, scope: "ORGANIZATION", projectSpaceId: null }, { organizationId, scope: "PROJECT_SPACE", projectSpaceId }, { organizationId: null, code: "space_admin" }] }, select: { id: true } });
-      if (!member || member.status !== "ACTIVE" || roles.length !== roleIds.length) throw new BadRequestException("邀请成员或角色无效");
-      await tx.projectInvitation.updateMany({ where: { projectSpaceId, userId, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
-      const invitation = await tx.projectInvitation.create({ data: { projectSpaceId, userId, invitedById: actorId, roleIds, expiresAt: new Date(Date.now() + 7 * 86400000) } });
-      await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId, action: "space.invitation.create", resourceType: "ProjectInvitation", resourceId: invitation.id, metadata: { userId, roleIds } } }); return invitation;
-    });
-  }
-
-  async acceptInvitation(organizationId: string, projectSpaceId: string, invitationId: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const invitation = await tx.projectInvitation.findFirst({ where: { id: invitationId, projectSpaceId, userId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() }, projectSpace: { organizationId } } });
-      if (!invitation) throw new NotFoundException("有效项目邀请不存在");
-      const roleIds = Array.isArray(invitation.roleIds) ? invitation.roleIds.filter((id): id is string => typeof id === "string") : [];
-      await tx.projectMember.upsert({ where: { projectSpaceId_userId: { projectSpaceId, userId } }, create: { projectSpaceId, userId }, update: { status: "ACTIVE" } });
-      await tx.roleBinding.deleteMany({ where: { organizationId, projectSpaceId, userId, scopeType: ScopeType.PROJECT_SPACE } });
-      if (roleIds.length) await tx.roleBinding.createMany({ data: roleIds.map((roleId) => ({ roleId, userId, scopeType: ScopeType.PROJECT_SPACE, organizationId, projectSpaceId })) });
-      await tx.projectInvitation.update({ where: { id: invitationId }, data: { acceptedAt: new Date() } });
-      await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId: userId, action: "space.invitation.accept", resourceType: "ProjectInvitation", resourceId: invitationId } }); return { projectSpaceId, userId, roleIds };
-    });
-  }
 }

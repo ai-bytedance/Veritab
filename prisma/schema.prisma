@@ -176,9 +176,6 @@ model User {
   testCaseHistory      TestCaseHistory[]
   testCaseExecutions   TestCaseExecution[]
   updatedTestCatalogs  TestCaseCatalog[]
-  sentInvitations      OrganizationInvitation[] @relation("InvitationSender")
-  sentProjectInvitations ProjectInvitation[]     @relation("ProjectInvitationSender")
-  receivedProjectInvitations ProjectInvitation[] @relation("ProjectInvitationTarget")
   uploadedFiles        FileObject[]
 
   @@map("users")
@@ -197,7 +194,6 @@ model Organization {
   identityProviders IdentityProvider[]
   webhooks          WebhookConfig[]
   auditLogs         AuditLog[]
-  invitations       OrganizationInvitation[]
   settings          OrganizationSettings?
   fileObjects       FileObject[]
 
@@ -262,7 +258,6 @@ model ProjectSpace {
   auditLogs       AuditLog[]
   counter         ProjectCounter?
   fileObjects     FileObject[]
-  invitations     ProjectInvitation[]
 
   @@unique([organizationId, key])
   @@index([organizationId, updatedAt(sort: Desc)])
@@ -308,25 +303,6 @@ model ProjectMember {
   @@map("project_members")
 }
 
-model ProjectInvitation {
-  id             String       @id @default(uuid()) @db.Uuid
-  projectSpaceId String       @map("project_space_id") @db.Uuid
-  userId         String       @map("user_id") @db.Uuid
-  invitedById    String       @map("invited_by_id") @db.Uuid
-  roleIds        Json         @map("role_ids")
-  acceptedAt     DateTime?    @map("accepted_at") @db.Timestamptz(3)
-  revokedAt      DateTime?    @map("revoked_at") @db.Timestamptz(3)
-  expiresAt      DateTime     @map("expires_at") @db.Timestamptz(3)
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  projectSpace   ProjectSpace @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
-  user           User         @relation("ProjectInvitationTarget", fields: [userId], references: [id], onDelete: Cascade)
-  invitedBy      User         @relation("ProjectInvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
-
-  @@index([projectSpaceId, createdAt(sort: Desc)])
-  @@index([userId, acceptedAt, revokedAt])
-  @@map("project_invitations")
-}
-
 model Role {
   id             String                   @id @default(uuid()) @db.Uuid
   organizationId String?                  @map("organization_id") @db.Uuid
@@ -341,7 +317,6 @@ model Role {
   projectSpace   ProjectSpace?             @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
   permissions    RolePermission[]
   bindings       RoleBinding[]
-  invitations    OrganizationInvitation[]
 
   @@unique([organizationId, code])
   @@index([organizationId, scope, projectSpaceId])
@@ -383,26 +358,6 @@ model RoleBinding {
   @@index([userId, organizationId, projectSpaceId])
   @@index([roleId])
   @@map("role_bindings")
-}
-
-model OrganizationInvitation {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  email          String       @db.VarChar(320)
-  roleId         String       @map("role_id") @db.Uuid
-  tokenHash      String       @unique @map("token_hash") @db.VarChar(64)
-  invitedById    String       @map("invited_by_id") @db.Uuid
-  expiresAt      DateTime     @map("expires_at") @db.Timestamptz(3)
-  acceptedAt     DateTime?    @map("accepted_at") @db.Timestamptz(3)
-  revokedAt      DateTime?    @map("revoked_at") @db.Timestamptz(3)
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  role           Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  invitedBy      User         @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, email, createdAt(sort: Desc)])
-  @@index([expiresAt])
-  @@map("organization_invitations")
 }
 
 model RefreshSession {
