@@ -49,6 +49,7 @@ export default function App() {
   const [requirementApiScope, setRequirementApiScope] = useState<RequirementApiScope | undefined>(configuredApiScope);
   const [organizationId, setOrganizationId] = useState<string | undefined>(configuredApiScope?.organizationId);
   const [organization, setOrganization] = useState<OrganizationSummary | undefined>();
+  const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
   const [organizationResolved, setOrganizationResolved] = useState(Boolean(configuredApiScope));
   const gitIntegration = useGitIntegrations(requirementApiScope);
   // Server-backed view state. PostgreSQL remains the sole business source of truth.
@@ -124,11 +125,14 @@ export default function App() {
     let cancelled = false;
     void apiRequest<OrganizationSummary[]>("/organizations")
       .then(async (organizations) => {
+        setOrganizations(organizations);
         const organization = organizations[0];
         if (!organization) return undefined;
         setOrganizationId(organization.id);
         setOrganization(organization);
-        const spaces = await apiRequest<Array<{ id: string }>>(`/organizations/${organization.id}/spaces`);
+        const spaces = await apiRequest<Array<{ id: string; key: string; name: string; description: string | null; version: number; createdAt: string }>>(`/organizations/${organization.id}/spaces`);
+        setProjects(spaces.map((space) => ({ id: space.id, key: space.key, name: space.name, description: space.description || "", repoType: "none", repoUrl: "", version: space.version, createdAt: space.createdAt })));
+        if (spaces[0]) setSelectedProjectId(spaces[0].id);
         return spaces[0] ? { organizationId: organization.id, projectSpaceId: spaces[0].id } : undefined;
       })
       .then((scope) => {
@@ -169,7 +173,7 @@ export default function App() {
         createdAt: space.createdAt,
         version: space.version,
       };
-      setProjects([project]);
+      setProjects((current) => current.length ? current.map((item) => item.id === project.id ? project : item) : [project]);
       setSelectedProjectId(project.id);
       setSystemConfig((current) => ({
         ...current,
@@ -334,6 +338,35 @@ export default function App() {
       body: JSON.stringify({ name, version: organization.version }),
     });
     setOrganization(updated);
+    setOrganizations((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+  };
+  const handleOrganizationChange = async (id: string) => {
+    const selected = organizations.find((item) => item.id === id);
+    if (!selected) return;
+    const spaces = await apiRequest<Array<{ id: string; key: string; name: string; description: string | null; version: number; createdAt: string }>>(`/organizations/${id}/spaces`);
+    const mapped = spaces.map((space) => ({ id: space.id, key: space.key, name: space.name, description: space.description || "", repoType: "none" as const, repoUrl: "", version: space.version, createdAt: space.createdAt }));
+    setOrganization(selected); setOrganizationId(id); setProjects(mapped);
+    if (mapped[0]) handleProjectChangeForOrganization(id, mapped[0].id); else { setSelectedProjectId(""); setRequirementApiScope(undefined); }
+  };
+  const handleProjectChangeForOrganization = (targetOrganizationId: string, projectSpaceId: string) => {
+    setSelectedProjectId(projectSpaceId); setRequirementApiScope({ organizationId: targetOrganizationId, projectSpaceId }); setFocusedTestCaseId(null);
+  };
+  const handleCreateOrganization = async (name: string) => {
+    const created = await apiRequest<OrganizationSummary>("/organizations", { method: "POST", body: JSON.stringify({ name }) });
+    const item = { ...created, _count: { members: 1, projectSpaces: 0 } };
+    setOrganizations((current) => [...current, item]); setOrganization(item); setOrganizationId(created.id); setProjects([]); setSelectedProjectId(""); setRequirementApiScope(undefined);
+  };
+  const handleProjectChange = (projectSpaceId: string) => {
+    setSelectedProjectId(projectSpaceId);
+    if (organizationId) setRequirementApiScope({ organizationId, projectSpaceId });
+    setFocusedTestCaseId(null);
+  };
+  const handleCreateProject = async (input: { name: string; key: string; description: string }) => {
+    if (!organizationId) throw new Error("当前组织上下文不可用。");
+    const space = await apiRequest<{ id: string; key: string; name: string; description: string | null; version: number; createdAt: string }>(`/organizations/${organizationId}/spaces`, { method: "POST", body: JSON.stringify(input) });
+    const project: Project = { id: space.id, key: space.key, name: space.name, description: space.description || "", repoType: "none", repoUrl: "", version: space.version, createdAt: space.createdAt };
+    setProjects((current) => [...current, project]);
+    handleProjectChange(project.id);
   };
   const connectedRepository = requirementApiScope ? gitIntegration.repository : undefined;
   const displayedRepositoryType = connectedRepository
@@ -352,7 +385,7 @@ export default function App() {
         }}
         projects={projects}
         selectedProjectId={selectedProjectId}
-        onProjectChange={setSelectedProjectId}
+        onProjectChange={handleProjectChange}
         systemModel={systemConfig.modelConfigs[systemConfig.activeModelProvider]?.name || systemConfig.activeModelProvider}
         currentUser={currentUser}
         onCurrentUserChange={handleCurrentUserChange}
@@ -538,6 +571,12 @@ export default function App() {
                   activeProject={activeProject}
                   onUpdateOrganization={handleUpdateOrganization}
                   onUpdateProject={handleUpdateActiveProject}
+                  projects={projects}
+                  onSelectProject={handleProjectChange}
+                  onCreateProject={handleCreateProject}
+                  organizations={organizations}
+                  onSelectOrganization={(id) => void handleOrganizationChange(id)}
+                  onCreateOrganization={handleCreateOrganization}
                 />
               )}
             </div>

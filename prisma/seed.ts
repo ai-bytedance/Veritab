@@ -45,15 +45,15 @@ async function main(): Promise<void> {
   );
 
   const roleDefinitions = [
-    { code: "org_admin", name: "Organization administrator", permissions: permissionCodes },
+    { code: "org_admin", name: "组织管理员", permissions: permissionCodes },
     {
       code: "space_admin",
-      name: "Project space administrator",
+      name: "项目空间管理员",
       permissions: permissionCodes.filter((code) => code !== "organization.manage"),
     },
     {
       code: "developer",
-      name: "Developer",
+      name: "开发人员",
       permissions: [
         "space.read",
         "member.read",
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
     },
     {
       code: "tester",
-      name: "Tester",
+      name: "测试人员",
       permissions: [
         "space.read",
         "member.read",
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     },
     {
       code: "viewer",
-      name: "Viewer",
+      name: "只读成员",
       permissions: ["organization.read", "space.read", "member.read", "requirement.read", "defect.read", "testcase.read"],
     },
   ] as const;

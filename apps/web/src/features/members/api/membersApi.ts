@@ -1,5 +1,5 @@
 import { apiRequest } from "../../../api/httpClient";
-import { ApiOrganizationInvitation, ApiOrganizationMember, ApiUserGroup, CreatedInvitation, MemberApiScope } from "./types";
+import { ApiOrganizationInvitation, ApiOrganizationMember, ApiRole, ApiUserGroup, CreatedInvitation, MemberApiScope } from "./types";
 
 const root = (scope: MemberApiScope) => `/organizations/${scope.organizationId}`;
 
@@ -15,8 +15,10 @@ export const membersApi = {
   assignRole: (scope: MemberApiScope, userId: string, roleCode: string) =>
     apiRequest(`${root(scope)}/members/${userId}/role`, { method: "PUT", body: JSON.stringify({ roleCode }) }),
   groups: (scope: MemberApiScope) => apiRequest<ApiUserGroup[]>(`${root(scope)}/groups`),
+  roles: (scope: MemberApiScope) => apiRequest<ApiRole[]>(`${root(scope)}/roles`),
   createGroup: (scope: MemberApiScope, input: { name: string; description?: string }) => apiRequest<ApiUserGroup>(`${root(scope)}/groups`, { method: "POST", body: JSON.stringify(input) }),
   addGroupMember: (scope: MemberApiScope, groupId: string, userId: string) => apiRequest(`${root(scope)}/groups/${groupId}/members/${userId}`, { method: "PUT" }),
   removeGroupMember: (scope: MemberApiScope, groupId: string, userId: string) => apiRequest<void>(`${root(scope)}/groups/${groupId}/members/${userId}`, { method: "DELETE" }),
   deleteGroup: (scope: MemberApiScope, groupId: string) => apiRequest<void>(`${root(scope)}/groups/${groupId}`, { method: "DELETE" }),
+  assignGroupRole: (scope: MemberApiScope, groupId: string, input: { scopeType: "ORGANIZATION" | "PROJECT_SPACE"; roleCode: string; projectSpaceId?: string }) => apiRequest(`${root(scope)}/groups/${groupId}/role`, { method: "PUT", body: JSON.stringify(input) }),
 };

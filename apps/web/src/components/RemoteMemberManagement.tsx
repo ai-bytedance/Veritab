@@ -3,6 +3,7 @@ import { CheckCircle2, Copy, MailPlus, ShieldCheck, Trash2, Users } from "lucide
 import { useMembers } from "../features/members/api/useMembers";
 import { CreatedInvitation, MemberApiScope } from "../features/members/api/types";
 import { User } from "../types";
+import SystemUserRegistry from "./SystemUserRegistry";
 
 const roles = [
   ["org_admin", "组织管理员（全部空间）"],
@@ -11,7 +12,7 @@ const roles = [
   ["viewer", "只读成员（全部空间）"],
 ] as const;
 
-export default function RemoteMemberManagement({ scope, currentUser }: { scope: MemberApiScope; currentUser: User }) {
+export default function RemoteMemberManagement({ scope, currentUser, projectSpace }: { scope: MemberApiScope; currentUser: User; projectSpace: { id: string; name: string } }) {
   const remote = useMembers(scope);
   const [email, setEmail] = useState("");
   const [roleCode, setRoleCode] = useState("developer");
@@ -44,6 +45,7 @@ export default function RemoteMemberManagement({ scope, currentUser }: { scope: 
 
   return (
     <div className="space-y-5">
+      {currentUser.role === "admin" && <SystemUserRegistry organizationId={scope.organizationId} currentUserId={currentUser.id} />}
       {(remote.isLoading || remote.isSaving || remote.error || message) && (
         <div className={`rounded-xl border px-4 py-2 text-xs font-bold ${remote.error ? "border-rose-200 bg-rose-50 text-rose-700" : "border-indigo-100 bg-indigo-50 text-indigo-700"}`}>
           {remote.error ? (remote.error instanceof Error ? remote.error.message : "成员服务异常") : remote.isSaving ? "正在保存成员变更…" : remote.isLoading ? "正在加载组织成员…" : message}
@@ -109,8 +111,17 @@ export default function RemoteMemberManagement({ scope, currentUser }: { scope: 
             <div className="flex items-center justify-between"><div className="text-xs font-black text-slate-800">{group.name} <span className="font-normal text-slate-400">({group.members.length})</span></div><button onClick={() => void run(() => remote.deleteGroup(group.id), "用户组已删除")} className="text-[10px] font-bold text-rose-600">删除</button></div>
             <div className="flex flex-wrap gap-2">{group.members.map((item) => <button key={item.userId} onClick={() => void run(() => remote.removeGroupMember({ groupId: group.id, userId: item.userId }), "成员已移出用户组")} className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-600">{item.user.displayName} ×</button>)}</div>
             {available.length > 0 && <select defaultValue="" onChange={(event) => { if (event.target.value) void run(() => remote.addGroupMember({ groupId: group.id, userId: event.target.value }), "成员已加入用户组"); event.target.value = ""; }} className="rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] bg-white"><option value="">添加成员…</option>{available.map((member) => <option key={member.user.id} value={member.user.id}>{member.user.displayName}</option>)}</select>}
+            <div className="grid gap-2 border-t border-slate-100 pt-2 sm:grid-cols-2">
+              <label className="space-y-1"><span className="text-[9px] font-bold text-slate-400">组织范围角色</span><select value={group.roleBindings.find((binding) => binding.scopeType === "ORGANIZATION")?.role.code || ""} onChange={(event) => { if (event.target.value) void run(() => remote.assignGroupRole({ groupId: group.id, scopeType: "ORGANIZATION", roleCode: event.target.value }), "组织角色已绑定"); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] bg-white"><option value="">未绑定</option>{remote.roles.filter((role) => role.code !== "space_admin").map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</select></label>
+              <label className="space-y-1"><span className="text-[9px] font-bold text-slate-400">{projectSpace.name} 角色</span><select value={group.roleBindings.find((binding) => binding.projectSpaceId === projectSpace.id)?.role.code || ""} onChange={(event) => { if (event.target.value) void run(() => remote.assignGroupRole({ groupId: group.id, scopeType: "PROJECT_SPACE", projectSpaceId: projectSpace.id, roleCode: event.target.value }), "项目空间角色已绑定"); }} className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] bg-white"><option value="">未绑定</option>{remote.roles.filter((role) => role.code !== "org_admin").map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}</select></label>
+            </div>
           </div>;
         })}
+      </div>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
+        <div className="border-b border-slate-100 pb-3"><h3 className="text-xs font-black text-slate-800">角色权限矩阵</h3><p className="mt-1 text-[10px] text-slate-400">权限由系统角色模板提供，用户组在组织或项目空间范围绑定角色。</p></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead><tr className="text-[10px] uppercase text-slate-400"><th className="p-2">角色</th><th className="p-2">权限项</th></tr></thead><tbody className="divide-y divide-slate-100">{remote.roles.map((role) => <tr key={role.id}><td className="p-2 font-black text-slate-800">{role.name}<div className="font-mono text-[9px] font-normal text-slate-400">{role.code}</div></td><td className="p-2"><div className="flex flex-wrap gap-1.5">{role.permissions.map((item) => <span key={item.permission.code} className="rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 font-mono text-[9px] text-indigo-700">{item.permission.code}</span>)}</div></td></tr>)}</tbody></table></div>
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">

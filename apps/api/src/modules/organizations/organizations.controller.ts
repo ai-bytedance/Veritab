@@ -10,6 +10,8 @@ import { OrganizationsService } from "./organizations.service";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 import { CreateUserGroupDto } from "./dto/create-user-group.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
+import { AddRegisteredMemberDto } from "./dto/add-registered-member.dto";
+import { AssignGroupRoleDto } from "./dto/assign-group-role.dto";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -61,6 +63,12 @@ export class OrganizationsController {
     return this.organizations.listMembers(organizationId);
   }
 
+  @Post(":organizationId/members")
+  @RequirePermissions("member.manage")
+  addRegisteredMember(@Param("organizationId", ParseUUIDPipe) organizationId: string, @CurrentUser("userId") actorId: string, @Body() dto: AddRegisteredMemberDto) {
+    return this.organizations.addRegisteredMember(organizationId, dto.userId, dto.roleCode, actorId);
+  }
+
   @Patch(":organizationId/members/:userId/status")
   @RequirePermissions("member.manage")
   @ApiOperation({ summary: "Activate or suspend an organization member" })
@@ -91,6 +99,12 @@ export class OrganizationsController {
     return this.organizations.listGroups(organizationId);
   }
 
+  @Get(":organizationId/roles")
+  @RequirePermissions("member.read")
+  listRoles(@Param("organizationId", ParseUUIDPipe) organizationId: string) {
+    return this.organizations.listRoles(organizationId);
+  }
+
   @Post(":organizationId/groups")
   @RequirePermissions("member.manage")
   createGroup(@Param("organizationId", ParseUUIDPipe) organizationId: string, @CurrentUser("userId") actorId: string, @Body() dto: CreateUserGroupDto) {
@@ -101,6 +115,12 @@ export class OrganizationsController {
   @RequirePermissions("member.manage")
   addGroupMember(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("groupId", ParseUUIDPipe) groupId: string, @Param("userId", ParseUUIDPipe) userId: string, @CurrentUser("userId") actorId: string) {
     return this.organizations.addGroupMember(organizationId, groupId, userId, actorId);
+  }
+
+  @Put(":organizationId/groups/:groupId/role")
+  @RequirePermissions("member.manage")
+  assignGroupRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("groupId", ParseUUIDPipe) groupId: string, @CurrentUser("userId") actorId: string, @Body() dto: AssignGroupRoleDto) {
+    return this.organizations.assignGroupRole(organizationId, groupId, actorId, dto);
   }
 
   @Delete(":organizationId/groups/:groupId/members/:userId")

@@ -10,6 +10,7 @@ export function useMembers(scope: MemberApiScope) {
   const members = useQuery({ queryKey: [...queryKey, "members"], queryFn: () => membersApi.list(scope) });
   const invitations = useQuery({ queryKey: [...queryKey, "invitations"], queryFn: () => membersApi.invitations(scope) });
   const groups = useQuery({ queryKey: [...queryKey, "groups"], queryFn: () => membersApi.groups(scope) });
+  const roles = useQuery({ queryKey: [...queryKey, "roles"], queryFn: () => membersApi.roles(scope) });
   const refresh = () => client.invalidateQueries({ queryKey });
   const invite = useMutation({ mutationFn: (input: { email: string; roleCode: string; expiresInHours: number }) => membersApi.invite(scope, input), onSuccess: refresh });
   const revoke = useMutation({ mutationFn: (id: string) => membersApi.revokeInvitation(scope, id), onSuccess: refresh });
@@ -19,10 +20,12 @@ export function useMembers(scope: MemberApiScope) {
   const addGroupMember = useMutation({ mutationFn: (input: { groupId: string; userId: string }) => membersApi.addGroupMember(scope, input.groupId, input.userId), onSuccess: refresh });
   const removeGroupMember = useMutation({ mutationFn: (input: { groupId: string; userId: string }) => membersApi.removeGroupMember(scope, input.groupId, input.userId), onSuccess: refresh });
   const deleteGroup = useMutation({ mutationFn: (id: string) => membersApi.deleteGroup(scope, id), onSuccess: refresh });
+  const groupRole = useMutation({ mutationFn: (input: { groupId: string; scopeType: "ORGANIZATION" | "PROJECT_SPACE"; roleCode: string; projectSpaceId?: string }) => membersApi.assignGroupRole(scope, input.groupId, input), onSuccess: refresh });
   return {
     members: members.data || [],
     invitations: invitations.data || [],
     groups: groups.data || [],
+    roles: roles.data || [],
     invite: invite.mutateAsync,
     revokeInvitation: revoke.mutateAsync,
     updateStatus: status.mutateAsync,
@@ -31,8 +34,9 @@ export function useMembers(scope: MemberApiScope) {
     addGroupMember: addGroupMember.mutateAsync,
     removeGroupMember: removeGroupMember.mutateAsync,
     deleteGroup: deleteGroup.mutateAsync,
-    isLoading: members.isLoading || invitations.isLoading || groups.isLoading,
-    isSaving: invite.isPending || revoke.isPending || status.isPending || role.isPending || createGroup.isPending || addGroupMember.isPending || removeGroupMember.isPending || deleteGroup.isPending,
-    error: members.error || invitations.error || groups.error || invite.error || revoke.error || status.error || role.error || createGroup.error || addGroupMember.error || removeGroupMember.error || deleteGroup.error,
+    assignGroupRole: groupRole.mutateAsync,
+    isLoading: members.isLoading || invitations.isLoading || groups.isLoading || roles.isLoading,
+    isSaving: invite.isPending || revoke.isPending || status.isPending || role.isPending || createGroup.isPending || addGroupMember.isPending || removeGroupMember.isPending || deleteGroup.isPending || groupRole.isPending,
+    error: members.error || invitations.error || groups.error || roles.error || invite.error || revoke.error || status.error || role.error || createGroup.error || addGroupMember.error || removeGroupMember.error || deleteGroup.error || groupRole.error,
   };
 }

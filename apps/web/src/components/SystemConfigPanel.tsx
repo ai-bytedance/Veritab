@@ -41,6 +41,12 @@ interface SystemConfigPanelProps {
   activeProject: Project;
   onUpdateOrganization: (name: string) => Promise<void>;
   onUpdateProject: (input: { name: string; description: string }) => Promise<void>;
+  projects: Project[];
+  onSelectProject: (id: string) => void;
+  onCreateProject: (input: { name: string; key: string; description: string }) => Promise<void>;
+  organizations: OrganizationSummary[];
+  onSelectOrganization: (id: string) => void;
+  onCreateOrganization: (name: string) => Promise<void>;
 }
 
 export default function SystemConfigPanel({
@@ -53,6 +59,12 @@ export default function SystemConfigPanel({
   activeProject,
   onUpdateOrganization,
   onUpdateProject,
+  projects,
+  onSelectProject,
+  onCreateProject,
+  organizations,
+  onSelectOrganization,
+  onCreateOrganization,
 }: SystemConfigPanelProps) {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -212,7 +224,7 @@ export default function SystemConfigPanel({
       </div>
 
       {settingsTab === "project" && (
-        <OrganizationSpaceSettings organization={organization} project={activeProject} onUpdateOrganization={onUpdateOrganization} onUpdateProject={onUpdateProject} showToast={showToast} />
+        <OrganizationSpaceSettings organization={organization} organizations={organizations} project={activeProject} projects={projects} onSelectOrganization={onSelectOrganization} onCreateOrganization={onCreateOrganization} onSelectProject={onSelectProject} onCreateProject={onCreateProject} onUpdateOrganization={onUpdateOrganization} onUpdateProject={onUpdateProject} showToast={showToast} />
       )}
 
       {settingsTab === "prompt" && (
@@ -310,7 +322,7 @@ export default function SystemConfigPanel({
 
       {settingsTab === "users" && (
         <div className="w-full animate-fade-in animate-in fade-in duration-200" id="system-config-users-tab">
-          <RemoteMemberManagement scope={memberApiScope} currentUser={currentUser} />
+          <RemoteMemberManagement scope={memberApiScope} currentUser={currentUser} projectSpace={{ id: activeProject.id, name: activeProject.name }} />
         </div>
       )}
       {settingsTab === "notifications" && <RemoteNotificationChannels scope={notificationApiScope} />}
