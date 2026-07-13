@@ -48,7 +48,6 @@ export class UsersService {
           id: true, username: true, email: true, displayName: true, feishuUserId: true, status: true,
           isSystemAdmin: true, version: true, lastLoginAt: true, createdAt: true,
           organizationMembers: { where: { status: "ACTIVE" }, select: { organization: { select: { id: true, name: true } } } },
-          groupMembers: { select: { group: { select: { id: true, name: true } } } },
         },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         skip: (query.page - 1) * query.limit,
@@ -75,7 +74,7 @@ export class UsersService {
         select: { id: true, username: true, email: true, displayName: true, feishuUserId: true, status: true, isSystemAdmin: true, version: true, lastLoginAt: true, createdAt: true },
       });
       await this.prisma.auditLog.create({ data: { organizationId, actorId, action: "system.user.create", resourceType: "User", resourceId: user.id, metadata: { username: user.username } } });
-      return { ...user, organizationMembers: [], groupMembers: [] };
+      return { ...user, organizationMembers: [] };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ConflictException("Username, email or Feishu user ID is already registered");
       throw error;

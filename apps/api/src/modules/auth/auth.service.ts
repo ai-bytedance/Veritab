@@ -68,7 +68,6 @@ export class AuthService {
       await tx.roleBinding.create({
         data: {
           roleId: invitation.role.id,
-          subjectType: "USER",
           userId: user.id,
           scopeType: "ORGANIZATION",
           organizationId: invitation.organizationId,

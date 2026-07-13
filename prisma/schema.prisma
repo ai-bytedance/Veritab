@@ -20,11 +20,6 @@ enum MembershipStatus {
   SUSPENDED
 }
 
-enum SubjectType {
-  USER
-  GROUP
-}
-
 enum ScopeType {
   ORGANIZATION
   PROJECT_SPACE
@@ -162,7 +157,6 @@ model User {
   projectMembers       ProjectMember[]
   refreshSessions      RefreshSession[]
   externalIdentities   ExternalIdentity[]
-  groupMembers         GroupMember[]
   roleBindings         RoleBinding[]            @relation("UserRoleBindings")
   createdRequirements  Requirement[]            @relation("RequirementCreator")
   assignedRequirements Requirement[]            @relation("RequirementAssignee")
@@ -193,7 +187,6 @@ model Organization {
   members           OrganizationMember[]
   projectSpaces     ProjectSpace[]
   roles             Role[]
-  userGroups        UserGroup[]
   identityProviders IdentityProvider[]
   webhooks          WebhookConfig[]
   auditLogs         AuditLog[]
@@ -305,33 +298,6 @@ model ProjectMember {
   @@map("project_members")
 }
 
-model UserGroup {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @map("organization_id") @db.Uuid
-  name           String        @db.VarChar(120)
-  description    String?       @db.VarChar(500)
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  members        GroupMember[]
-  roleBindings   RoleBinding[] @relation("GroupRoleBindings")
-
-  @@unique([organizationId, name])
-  @@map("user_groups")
-}
-
-model GroupMember {
-  groupId   String    @map("group_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  group     UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([groupId, userId])
-  @@index([userId])
-  @@map("group_members")
-}
-
 model Role {
   id             String                   @id @default(uuid()) @db.Uuid
   organizationId String?                  @map("organization_id") @db.Uuid
@@ -372,20 +338,16 @@ model RolePermission {
 model RoleBinding {
   id             String        @id @default(uuid()) @db.Uuid
   roleId         String        @map("role_id") @db.Uuid
-  subjectType    SubjectType   @map("subject_type")
-  userId         String?       @map("user_id") @db.Uuid
-  groupId        String?       @map("group_id") @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
   scopeType      ScopeType     @map("scope_type")
   organizationId String        @map("organization_id") @db.Uuid
   projectSpaceId String?       @map("project_space_id") @db.Uuid
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   role           Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  user           User?         @relation("UserRoleBindings", fields: [userId], references: [id], onDelete: Cascade)
-  group          UserGroup?    @relation("GroupRoleBindings", fields: [groupId], references: [id], onDelete: Cascade)
+  user           User          @relation("UserRoleBindings", fields: [userId], references: [id], onDelete: Cascade)
   projectSpace   ProjectSpace? @relation(fields: [projectSpaceId], references: [id], onDelete: Cascade)
 
   @@index([userId, organizationId, projectSpaceId])
-  @@index([groupId, organizationId, projectSpaceId])
   @@index([roleId])
   @@map("role_bindings")
 }

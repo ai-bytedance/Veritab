@@ -32,18 +32,10 @@ export class RbacService {
       if (!space) return false;
     }
 
-    const groupRows = await this.prisma.groupMember.findMany({
-      where: { userId: context.userId, group: { organizationId: context.organizationId } },
-      select: { groupId: true },
-    });
-    const groupIds = groupRows.map((row) => row.groupId);
     const bindings = await this.prisma.roleBinding.findMany({
       where: {
         organizationId: context.organizationId,
-        OR: [
-          { userId: context.userId },
-          ...(groupIds.length > 0 ? [{ groupId: { in: groupIds } }] : []),
-        ],
+        userId: context.userId,
         AND: [
           {
             OR: [

@@ -10,7 +10,7 @@ export interface ApiOrganizationMember {
     displayName: string;
     status: "ACTIVE" | "DISABLED" | "LOCKED";
     lastLoginAt: string | null;
-    roleBindings: Array<{ role: { code: string; name: string } }>;
+    roleBindings: Array<{ scopeType: "ORGANIZATION" | "PROJECT_SPACE"; projectSpaceId: string | null; role: { code: string; name: string }; projectSpace: { id: string; name: string; key: string } | null }>;
   };
 }
 
@@ -27,14 +27,6 @@ export interface ApiOrganizationInvitation {
 
 export interface CreatedInvitation extends Omit<ApiOrganizationInvitation, "acceptedAt" | "revokedAt" | "invitedBy"> {
   activationToken: string;
-}
-
-export interface ApiUserGroup {
-  id: string;
-  name: string;
-  description: string | null;
-  members: Array<{ userId: string; user: { id: string; username: string; displayName: string } }>;
-  roleBindings: Array<{ id: string; scopeType: "ORGANIZATION" | "PROJECT_SPACE"; projectSpaceId: string | null; role: { code: string; name: string }; projectSpace: { id: string; key: string; name: string } | null }>;
 }
 
 export interface ApiPermission { code: string; description: string | null }

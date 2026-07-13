@@ -8,12 +8,11 @@ import { CreateMemberInvitationDto } from "./dto/create-member-invitation.dto";
 import { UpdateMemberStatusDto } from "./dto/update-member-status.dto";
 import { OrganizationsService } from "./organizations.service";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
-import { CreateUserGroupDto } from "./dto/create-user-group.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { AddRegisteredMemberDto } from "./dto/add-registered-member.dto";
-import { AssignGroupRoleDto } from "./dto/assign-group-role.dto";
 import { CreateRoleDto } from "./dto/create-role.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
+import { AssignProjectMemberRoleDto } from "./dto/assign-project-member-role.dto";
 
 @ApiTags("Organizations")
 @ApiBearerAuth()
@@ -95,10 +94,10 @@ export class OrganizationsController {
     return this.organizations.assignMemberRole(organizationId, userId, actorId, dto.roleCode);
   }
 
-  @Get(":organizationId/groups")
-  @RequirePermissions("member.read")
-  listGroups(@Param("organizationId", ParseUUIDPipe) organizationId: string) {
-    return this.organizations.listGroups(organizationId);
+  @Put(":organizationId/members/:userId/project-role")
+  @RequirePermissions("member.manage")
+  assignProjectMemberRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("userId", ParseUUIDPipe) userId: string, @CurrentUser("userId") actorId: string, @Body() dto: AssignProjectMemberRoleDto) {
+    return this.organizations.assignProjectMemberRole(organizationId, userId, actorId, dto.projectSpaceId, dto.roleCode);
   }
 
   @Get(":organizationId/roles")
@@ -128,38 +127,6 @@ export class OrganizationsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("roleId", ParseUUIDPipe) roleId: string, @CurrentUser("userId") actorId: string) {
     return this.organizations.deleteRole(organizationId, roleId, actorId);
-  }
-
-  @Post(":organizationId/groups")
-  @RequirePermissions("member.manage")
-  createGroup(@Param("organizationId", ParseUUIDPipe) organizationId: string, @CurrentUser("userId") actorId: string, @Body() dto: CreateUserGroupDto) {
-    return this.organizations.createGroup(organizationId, actorId, dto);
-  }
-
-  @Put(":organizationId/groups/:groupId/members/:userId")
-  @RequirePermissions("member.manage")
-  addGroupMember(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("groupId", ParseUUIDPipe) groupId: string, @Param("userId", ParseUUIDPipe) userId: string, @CurrentUser("userId") actorId: string) {
-    return this.organizations.addGroupMember(organizationId, groupId, userId, actorId);
-  }
-
-  @Put(":organizationId/groups/:groupId/role")
-  @RequirePermissions("member.manage")
-  assignGroupRole(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("groupId", ParseUUIDPipe) groupId: string, @CurrentUser("userId") actorId: string, @Body() dto: AssignGroupRoleDto) {
-    return this.organizations.assignGroupRole(organizationId, groupId, actorId, dto);
-  }
-
-  @Delete(":organizationId/groups/:groupId/members/:userId")
-  @RequirePermissions("member.manage")
-  @HttpCode(HttpStatus.NO_CONTENT)
-  removeGroupMember(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("groupId", ParseUUIDPipe) groupId: string, @Param("userId", ParseUUIDPipe) userId: string, @CurrentUser("userId") actorId: string) {
-    return this.organizations.removeGroupMember(organizationId, groupId, userId, actorId);
-  }
-
-  @Delete(":organizationId/groups/:groupId")
-  @RequirePermissions("member.manage")
-  @HttpCode(HttpStatus.NO_CONTENT)
-  deleteGroup(@Param("organizationId", ParseUUIDPipe) organizationId: string, @Param("groupId", ParseUUIDPipe) groupId: string, @CurrentUser("userId") actorId: string) {
-    return this.organizations.deleteGroup(organizationId, groupId, actorId);
   }
 
   @Get(":organizationId/invitations")

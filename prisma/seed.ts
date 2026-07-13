@@ -36,7 +36,7 @@ const permissionCodes = [
 const permissionNames: Record<(typeof permissionCodes)[number], string> = {
   "organization.read": "查看组织", "organization.manage": "管理组织",
   "space.read": "查看项目空间", "space.manage": "管理项目空间",
-  "member.read": "查看成员与群组", "member.manage": "管理成员与群组",
+  "member.read": "查看成员", "member.manage": "管理成员与角色",
   "requirement.read": "查看需求", "requirement.create": "创建需求", "requirement.update": "编辑需求", "requirement.transition": "变更需求状态", "requirement.delete": "删除需求",
   "defect.read": "查看缺陷", "defect.create": "创建缺陷", "defect.update": "编辑缺陷", "defect.transition": "变更缺陷状态", "defect.delete": "删除缺陷", "defect.comment": "评论缺陷",
   "testcase.read": "查看用例", "testcase.create": "创建用例", "testcase.update": "编辑用例", "testcase.execute": "执行用例", "testcase.delete": "删除用例", "testcase.mindmap": "编辑用例脑图", "testcase.import": "导入用例", "testcase.export": "导出用例",

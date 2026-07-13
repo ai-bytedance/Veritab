@@ -219,7 +219,7 @@ export default function SystemConfigPanel({
           }`}
         >
           <UserCheck className="h-4 w-4" />
-          <span>成员与群组</span>
+          <span>成员与权限</span>
         </button>
       </div>
 

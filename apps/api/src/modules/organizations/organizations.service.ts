@@ -1,13 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { createHash, randomBytes } from "node:crypto";
-import { MembershipStatus, ScopeType, SubjectType } from "@prisma/client";
+import { MembershipStatus, ScopeType } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { CreateMemberInvitationDto } from "./dto/create-member-invitation.dto";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
-import { CreateUserGroupDto } from "./dto/create-user-group.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
-import { AssignGroupRoleDto } from "./dto/assign-group-role.dto";
 import { CreateRoleDto } from "./dto/create-role.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
 
@@ -45,7 +43,6 @@ export class OrganizationsService {
       await tx.roleBinding.create({
         data: {
           roleId: adminRole.id,
-          subjectType: SubjectType.USER,
           userId,
           scopeType: ScopeType.ORGANIZATION,
           organizationId: organization.id,
@@ -129,8 +126,8 @@ export class OrganizationsService {
             status: true,
             lastLoginAt: true,
             roleBindings: {
-              where: { organizationId, scopeType: ScopeType.ORGANIZATION, projectSpaceId: null },
-              select: { role: { select: { code: true, name: true } } },
+              where: { organizationId },
+              select: { scopeType: true, projectSpaceId: true, role: { select: { code: true, name: true } }, projectSpace: { select: { id: true, name: true, key: true } } },
             },
           },
         },
@@ -168,7 +165,7 @@ export class OrganizationsService {
       if (!user || !role) throw new NotFoundException("Active user or role not found");
       await tx.organizationMember.upsert({ where: { organizationId_userId: { organizationId, userId } }, create: { organizationId, userId }, update: { status: "ACTIVE" } });
       await tx.roleBinding.deleteMany({ where: { organizationId, userId, scopeType: ScopeType.ORGANIZATION, projectSpaceId: null } });
-      await tx.roleBinding.create({ data: { roleId: role.id, subjectType: SubjectType.USER, userId, scopeType: ScopeType.ORGANIZATION, organizationId } });
+      await tx.roleBinding.create({ data: { roleId: role.id, userId, scopeType: ScopeType.ORGANIZATION, organizationId } });
       await tx.auditLog.create({ data: { organizationId, actorId, action: "member.add", resourceType: "User", resourceId: userId, metadata: { roleCode } } });
       return { organizationId, userId, roleCode };
     });
@@ -191,7 +188,7 @@ export class OrganizationsService {
         where: { organizationId, userId, scopeType: ScopeType.ORGANIZATION, projectSpaceId: null },
       });
       const binding = await tx.roleBinding.create({
-        data: { roleId: role.id, subjectType: SubjectType.USER, userId, scopeType: ScopeType.ORGANIZATION, organizationId },
+        data: { roleId: role.id, userId, scopeType: ScopeType.ORGANIZATION, organizationId },
       });
       await tx.auditLog.create({
         data: { organizationId, actorId, action: "member.role.assign", resourceType: "RoleBinding", resourceId: binding.id, metadata: { userId, roleCode } },
@@ -200,14 +197,19 @@ export class OrganizationsService {
     });
   }
 
-  listGroups(organizationId: string) {
-    return this.prisma.userGroup.findMany({
-      where: { organizationId },
-      include: {
-        members: { include: { user: { select: { id: true, username: true, displayName: true } } }, orderBy: { createdAt: "asc" } },
-        roleBindings: { include: { role: { select: { code: true, name: true } }, projectSpace: { select: { id: true, key: true, name: true } } }, orderBy: { createdAt: "asc" } },
-      },
-      orderBy: { name: "asc" },
+  async assignProjectMemberRole(organizationId: string, userId: string, actorId: string, projectSpaceId: string, roleCode?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const [member, space, role] = await Promise.all([
+        tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId, userId } }, select: { userId: true } }),
+        tx.projectSpace.findFirst({ where: { id: projectSpaceId, organizationId, archivedAt: null }, select: { id: true } }),
+        roleCode ? tx.role.findFirst({ where: { code: roleCode, OR: [{ organizationId: null }, { organizationId }] }, select: { id: true } }) : Promise.resolve(null),
+      ]);
+      if (!member || !space || (roleCode && !role)) throw new NotFoundException("成员、项目空间或角色不存在");
+      if (roleCode === "org_admin") throw new BadRequestException("组织管理员只能绑定在组织范围");
+      await tx.roleBinding.deleteMany({ where: { organizationId, userId, scopeType: ScopeType.PROJECT_SPACE, projectSpaceId } });
+      const binding = role ? await tx.roleBinding.create({ data: { roleId: role.id, userId, scopeType: ScopeType.PROJECT_SPACE, organizationId, projectSpaceId } }) : null;
+      await tx.auditLog.create({ data: { organizationId, projectSpaceId, actorId, action: role ? "member.project-role.assign" : "member.project-role.remove", resourceType: "User", resourceId: userId, metadata: { roleCode: roleCode ?? null } } });
+      return binding;
     });
   }
 
@@ -256,67 +258,6 @@ export class OrganizationsService {
       if (role._count.bindings || role._count.invitations) throw new ConflictException("角色正在被成员、群组或邀请使用，无法删除");
       await tx.role.delete({ where: { id: roleId } });
       await tx.auditLog.create({ data: { organizationId, actorId, action: "role.delete", resourceType: "Role", resourceId: roleId } });
-    });
-  }
-
-  async assignGroupRole(organizationId: string, groupId: string, actorId: string, dto: AssignGroupRoleDto) {
-    const organizationScope = dto.scopeType === "ORGANIZATION";
-    if (organizationScope && dto.projectSpaceId) throw new BadRequestException("Organization role cannot target a project space");
-    if (!organizationScope && !dto.projectSpaceId) throw new BadRequestException("Project space role requires projectSpaceId");
-    if (organizationScope && dto.roleCode === "space_admin") throw new BadRequestException("space_admin can only be assigned to a project space");
-    if (!organizationScope && dto.roleCode === "org_admin") throw new BadRequestException("org_admin can only be assigned to an organization");
-    return this.prisma.$transaction(async (tx) => {
-      const [group, role, space] = await Promise.all([
-        tx.userGroup.findFirst({ where: { id: groupId, organizationId }, select: { id: true } }),
-        dto.roleCode ? tx.role.findFirst({ where: { code: dto.roleCode, OR: [{ organizationId: null }, { organizationId }] }, select: { id: true } }) : Promise.resolve(null),
-        dto.projectSpaceId ? tx.projectSpace.findFirst({ where: { id: dto.projectSpaceId, organizationId, archivedAt: null }, select: { id: true } }) : Promise.resolve(null),
-      ]);
-      if (!group || (dto.roleCode && !role) || (!organizationScope && !space)) throw new NotFoundException("Group, role or project space not found");
-      await tx.roleBinding.deleteMany({ where: { groupId, organizationId, scopeType: dto.scopeType, projectSpaceId: dto.projectSpaceId ?? null } });
-      const binding = role ? await tx.roleBinding.create({ data: { roleId: role.id, subjectType: SubjectType.GROUP, groupId, scopeType: dto.scopeType, organizationId, projectSpaceId: dto.projectSpaceId ?? null } }) : null;
-      await tx.auditLog.create({ data: { organizationId, projectSpaceId: dto.projectSpaceId, actorId, action: role ? "group.role.assign" : "group.role.remove", resourceType: "UserGroup", resourceId: groupId, metadata: { groupId, roleCode: dto.roleCode ?? null, scopeType: dto.scopeType } } });
-      return binding;
-    });
-  }
-
-  async createGroup(organizationId: string, actorId: string, dto: CreateUserGroupDto) {
-    return this.prisma.$transaction(async (tx) => {
-      const group = await tx.userGroup.create({ data: { organizationId, name: dto.name.trim(), description: dto.description?.trim() || null } });
-      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.create", resourceType: "UserGroup", resourceId: group.id } });
-      return { ...group, members: [] };
-    }).catch((error: unknown) => {
-      if (error && typeof error === "object" && "code" in error && error.code === "P2002") throw new ConflictException("Group name is already in use");
-      throw error;
-    });
-  }
-
-  async addGroupMember(organizationId: string, groupId: string, userId: string, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const [group, member] = await Promise.all([
-        tx.userGroup.findFirst({ where: { id: groupId, organizationId } }),
-        tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId, userId } } }),
-      ]);
-      if (!group || !member) throw new NotFoundException("Group or organization member not found");
-      await tx.groupMember.upsert({ where: { groupId_userId: { groupId, userId } }, create: { groupId, userId }, update: {} });
-      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.member.add", resourceType: "UserGroup", resourceId: groupId, metadata: { userId } } });
-      return { groupId, userId };
-    });
-  }
-
-  async removeGroupMember(organizationId: string, groupId: string, userId: string, actorId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      const group = await tx.userGroup.findFirst({ where: { id: groupId, organizationId }, select: { id: true } });
-      if (!group) throw new NotFoundException("Group not found");
-      await tx.groupMember.deleteMany({ where: { groupId, userId } });
-      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.member.remove", resourceType: "UserGroup", resourceId: groupId, metadata: { userId } } });
-    });
-  }
-
-  async deleteGroup(organizationId: string, groupId: string, actorId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      const deleted = await tx.userGroup.deleteMany({ where: { id: groupId, organizationId } });
-      if (!deleted.count) throw new NotFoundException("Group not found");
-      await tx.auditLog.create({ data: { organizationId, actorId, action: "group.delete", resourceType: "UserGroup", resourceId: groupId } });
     });
   }
 

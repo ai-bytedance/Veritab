@@ -6,7 +6,6 @@ describe("RbacService", () => {
   const prisma = {
     organizationMember: { findUnique: jest.fn() },
     projectSpace: { findFirst: jest.fn() },
-    groupMember: { findMany: jest.fn() },
     roleBinding: { findMany: jest.fn() },
   };
   const service = new RbacService(prisma as unknown as PrismaService);
@@ -15,7 +14,6 @@ describe("RbacService", () => {
     jest.resetAllMocks();
     prisma.organizationMember.findUnique.mockResolvedValue({ status: MembershipStatus.ACTIVE });
     prisma.projectSpace.findFirst.mockResolvedValue({ id: "space-1" });
-    prisma.groupMember.findMany.mockResolvedValue([]);
   });
 
   it("allows only when every requested permission is granted", async () => {
