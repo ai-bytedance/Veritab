@@ -55,7 +55,7 @@ async function main(): Promise<void> {
   );
 
   const roleDefinitions = [
-    { code: "org_admin", name: "组织管理员", scope: "ORGANIZATION" as const, permissions: permissionCodes },
+    { code: "org_admin", name: "系统管理员", scope: "ORGANIZATION" as const, permissions: permissionCodes },
     {
       code: "space_admin",
       name: "项目空间管理员",
