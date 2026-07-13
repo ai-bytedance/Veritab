@@ -168,18 +168,20 @@ export class OrganizationsService {
     });
   }
 
-  async addRegisteredMember(organizationId: string, userId: string, roleCode: string, actorId: string) {
+  async addRegisteredMember(organizationId: string, userId: string, actorId: string, roleCode?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const [user, role] = await Promise.all([
-        tx.user.findFirst({ where: { id: userId, status: "ACTIVE" }, select: { id: true } }),
-        tx.role.findFirst({ where: { code: roleCode, OR: [{ organizationId: null }, { organizationId }] }, select: { id: true } }),
-      ]);
-      if (!user || !role) throw new NotFoundException("Active user or role not found");
+      const user = await tx.user.findFirst({ where: { id: userId, status: "ACTIVE" }, select: { id: true, isSystemAdmin: true } });
+      if (!user) throw new NotFoundException("有效用户不存在");
+      const role = roleCode ? await tx.role.findFirst({ where: { code: roleCode, OR: [{ organizationId: null }, { organizationId }] }, select: { id: true } }) : null;
+      if (roleCode && !role) throw new NotFoundException("角色不存在");
+      if (roleCode === "org_admin" && !user.isSystemAdmin) throw new BadRequestException("普通用户不能绑定系统管理员角色");
       const existingMembership = await tx.organizationMember.findFirst({ where: { userId }, select: { organizationId: true } });
       if (existingMembership && existingMembership.organizationId !== organizationId) throw new ConflictException("该账号已归属其他组织");
       await tx.organizationMember.upsert({ where: { organizationId_userId: { organizationId, userId } }, create: { organizationId, userId }, update: { status: "ACTIVE" } });
-      await tx.roleBinding.deleteMany({ where: { organizationId, userId, scopeType: ScopeType.ORGANIZATION, projectSpaceId: null } });
-      await tx.roleBinding.create({ data: { roleId: role.id, userId, scopeType: ScopeType.ORGANIZATION, organizationId } });
+      if (role) {
+        await tx.roleBinding.deleteMany({ where: { organizationId, userId, scopeType: ScopeType.ORGANIZATION, projectSpaceId: null } });
+        await tx.roleBinding.create({ data: { roleId: role.id, userId, scopeType: ScopeType.ORGANIZATION, organizationId } });
+      }
       await tx.auditLog.create({ data: { organizationId, actorId, action: "member.add", resourceType: "User", resourceId: userId, metadata: { roleCode } } });
       return { organizationId, userId, roleCode };
     });

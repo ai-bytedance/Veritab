@@ -72,7 +72,7 @@ export class OrganizationsController {
   @Post(":organizationId/members")
   @RequirePermissions("member.manage")
   addRegisteredMember(@Param("organizationId", ParseUUIDPipe) organizationId: string, @CurrentUser("userId") actorId: string, @Body() dto: AddRegisteredMemberDto) {
-    return this.organizations.addRegisteredMember(organizationId, dto.userId, dto.roleCode, actorId);
+    return this.organizations.addRegisteredMember(organizationId, dto.userId, actorId, dto.roleCode);
   }
 
   @Patch(":organizationId/members/:userId/status")
